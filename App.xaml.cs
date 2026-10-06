@@ -41,6 +41,19 @@ public partial class App : Application
         catch { }
     }
 
+    /// <summary>One line of what the machine is doing, in the same file its faults use. A phone that goes quiet, or is
+    /// refused at the door, leaves nothing behind in a log made only for exceptions — which makes it indistinguishable
+    /// from a phone that never appeared at all.</summary>
+    public static void Note(string what)
+    {
+        try
+        {
+            File.AppendAllText(Path.Combine(Path.GetTempPath(), LogFileName),
+                $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {what}\n");
+        }
+        catch { }
+    }
+
     static bool WaitForPredecessor(Mutex mutex)
     {
         try { return mutex.WaitOne(PredecessorExitTimeout); }

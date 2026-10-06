@@ -148,7 +148,11 @@ public partial class MainWindow
         ShelfEdgeRight.Color = EdgeFade(ShelfOverflow - scrolled);
     }
 
-    void ShelfRow_Click(object sender, RoutedEventArgs e) => ShowPanel(Panel.Shelf);
+    void ShelfRow_Click(object sender, RoutedEventArgs e)
+    {
+        SyncClip();
+        ShowPanel(Panel.Shelf);
+    }
 
     void ShelfClear_Click(object sender, RoutedEventArgs e) => _shelf.Clear();
 

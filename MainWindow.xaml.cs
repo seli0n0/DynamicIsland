@@ -13,9 +13,9 @@ namespace DynamicIsland;
 
 public partial class MainWindow : Window
 {
-    enum View { Idle, Media, Timer, Volume, Charge, Focus, Toast, Notice, MediaBig, IdleBig, TimerBig, TimerSet, Menu, Settings, Look, Shelf, Update, Loading }
+    enum View { Idle, Media, Timer, Volume, Charge, Focus, Toast, Notice, PairAsk, MediaBig, IdleBig, TimerBig, TimerSet, Menu, Settings, Look, Position, Fonts, Shelf, Phone, ClipToast, Loading }
 
-    enum Panel { None, Player, Timer, TimerSet, Menu, Settings, Look, Shelf, Update }
+    enum Panel { None, Player, Timer, TimerSet, Menu, Settings, Look, Position, Fonts, Shelf, Phone }
 
     readonly record struct PillShape(double Width, double Height, double Radius);
 
@@ -29,15 +29,19 @@ public partial class MainWindow : Window
         [View.Focus] = new(236, 34, 17),
         [View.Toast] = new(340, 68, 30),
         [View.Notice] = new(320, 64, 29),
+        [View.PairAsk] = new(380, 84, 40),
         [View.MediaBig] = new(380, PlayerHeight, 40),
         [View.IdleBig] = new(320, 124, 38),
         [View.TimerBig] = new(330, 92, 40),
         [View.TimerSet] = new(300, 190, 38),
-        [View.Menu] = new(300, 248, 34),
-        [View.Settings] = new(320, 374, 34),
-        [View.Look] = new(352, LookHeight, 34),
-        [View.Shelf] = new(380, 136, 34),
-        [View.Update] = new(320, 150, 34),
+        [View.Menu] = new(300, 133, 34),
+        [View.Settings] = new(320, 479, 34),
+        [View.Look] = new(352, 340, 34),
+        [View.Position] = new(320, 272, 34),
+        [View.Fonts] = new(320, 252, 34),
+        [View.Shelf] = new(380, 480, 34),
+        [View.Phone] = new(320, 300, 34),
+        [View.ClipToast] = new(250, 34, 17),
         [View.Loading] = new(118, 34, 17),
     };
 
@@ -55,7 +59,13 @@ public partial class MainWindow : Window
         [View.MediaBig] = new(20, 20, 64, 22, 52, 38, 26, 1),
     };
 
-    static readonly View[] MenuPages = [View.Settings, View.Look, View.TimerSet, View.TimerBig, View.Shelf];
+    static readonly View[] MenuPages = [View.Settings, View.Look, View.Position, View.Fonts, View.TimerSet, View.TimerBig, View.Shelf, View.Phone];
+
+    /// Pills that hold a page of rows are as tall as those rows: the host is clipped to the pill, so a row that
+    /// falls past its bottom edge is not low in the list any more, it is gone. See <see cref="FitPages"/>.
+    const double PageBottomPad = 6;
+
+    UpdateWindow? _updateWindow;
 
     const double HostWidth = 620, HostHeight = 520;
     const double CompactMaxHeight = 40;
@@ -74,6 +84,8 @@ public partial class MainWindow : Window
     readonly MediaService _media;
     readonly LyricsService _lyrics = new();
     readonly NetworkService _network;
+    readonly MicService _mic;
+    readonly NoticeService _notices;
     readonly Updater _updater = new();
     readonly Stopwatch _clock = Stopwatch.StartNew();
     readonly DispatcherTimer _ticker = new() { Interval = TickInterval };
@@ -88,11 +100,18 @@ public partial class MainWindow : Window
     IntPtr _hwnd;
     int _ticks;
 
+    ScreenInfo _screen;
+    ScreenInfo[]? _screens;
+    DateTime _screensAt;
+    bool _growsUp;
+    bool _moving;
+
     public MainWindow()
     {
         InitializeComponent();
-        Width *= LargestScale / 100.0;
-        Height = Height * LargestScale / 100.0 + LargestGap;
+        Size box = Placement.BoxDip(Settings.Edge);
+        Width = box.Width;
+        Height = box.Height;
 
         _dim = BrushResource("Dim");
         _orange = BrushResource("Orange");
@@ -110,6 +129,7 @@ public partial class MainWindow : Window
             [View.Focus] = FocusView,
             [View.Toast] = ToastView,
             [View.Notice] = NoticeView,
+            [View.PairAsk] = PairAskView,
             [View.MediaBig] = MediaBigView,
             [View.IdleBig] = IdleBigView,
             [View.TimerBig] = TimerBigView,
@@ -117,8 +137,11 @@ public partial class MainWindow : Window
             [View.Menu] = MenuView,
             [View.Settings] = SettingsView,
             [View.Look] = LookView,
+            [View.Position] = PositionView,
+            [View.Fonts] = FontsView,
             [View.Shelf] = ShelfView,
-            [View.Update] = UpdatePage,
+            [View.Phone] = PhoneView,
+            [View.ClipToast] = ClipToastView,
             [View.Loading] = LoadingView,
         };
         _spotSprings = [_coverLeft, _coverTop, _coverSize, _barsRight, _barsCenterY, _barsWidth, _barsHeight, _barsOpen];
@@ -142,18 +165,31 @@ public partial class MainWindow : Window
         _awayTimeout = new DelayedAction(ReturnFromAway);
         _overshootTimeout = new DelayedAction(ReleaseVolumeOvershoot);
         _dragLeaveTimeout = new DelayedAction(OnDragLeft);
+        _exitDisarm = new DelayedAction(DisarmExit);
 
         _media = new MediaService(Dispatcher);
         _media.Changed += OnMediaChanged;
         _lyrics.Changed += OnLyricsChanged;
         _network = new NetworkService(Dispatcher);
         _network.Changed += OnNetworkChanged;
-        _updater.Changed += RefreshUpdatePage;
+        _mic = new MicService(Dispatcher);
+        _mic.Changed += OnMicChanged;
+        _notices = new NoticeService(Dispatcher);
+        _notices.Raised += OnNoticeRaised;
+        _updater.Changed += RefreshUpdate;
         _shelf = new Shelf(Dispatcher);
         _shelf.Changed += SyncShelf;
         _shelf.PictureLoaded += OnShelfPictureLoaded;
+        _copies.Changed += SyncClip;
+        WireBridge();
 
         PrepareViews();
+        Peekable(EdgeRow, EdgeChoices);
+        Peekable(MonitorRow, MonitorChoices);
+        Peekable(AnchorRow, AnchorChoices);
+        Peekable(AlongRow, AlongChoices, chips: true);
+        Peekable(FontRow, FontChoices);
+        Peekable(FontScaleRow, FontScaleChoices, chips: true);
         ApplyTimerTint();
         TuneDragSprings(false);
         _ticker.Tick += (_, _) => OnTick();
@@ -162,6 +198,7 @@ public partial class MainWindow : Window
 
     void PrepareViews()
     {
+        FitPages();
         foreach (FrameworkElement view in _views.Values)
         {
             view.RenderTransformOrigin = new Point(0.5, 0.5);
@@ -187,6 +224,25 @@ public partial class MainWindow : Window
         }
     }
 
+    void FitPages()
+    {
+        foreach ((View view, FrameworkElement body) in new (View, FrameworkElement)[]
+        {
+            (View.Menu, MenuBody), (View.Settings, SettingsBody), (View.Look, LookBody),
+            (View.Position, PositionBody), (View.Fonts, FontsBody), (View.Phone, PhoneBody),
+        }) FitPage(view, body);
+    }
+
+    /// <summary>
+    /// How tall a page wants to be, measured at its own width. A page whose words arrive later than this measuring —
+    /// the phone page learns its address and its note only when the bridge speaks — is fitted again then.
+    /// </summary>
+    void FitPage(View view, FrameworkElement body)
+    {
+        body.Measure(new Size(_views[view].Width, double.PositiveInfinity));
+        _views[view].Height = Math.Ceiling(body.DesiredSize.Height) + body.Margin.Top + PageBottomPad;
+    }
+
     bool IsMediaActive => _media.HasTrack && (_media.IsPlaying || DateTime.UtcNow - _lastPlayedAt < PausedMediaLinger);
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -194,7 +250,9 @@ public partial class MainWindow : Window
         base.OnSourceInitialized(e);
         _hwnd = new WindowInteropHelper(this).Handle;
         Native.HideFromTaskSwitcher(_hwnd);
-        if (Native.RegisterShellHook(_hwnd)) HwndSource.FromHwnd(_hwnd).AddHook(OnShellMessage);
+        bool shell = Native.RegisterShellHook(_hwnd);
+        bool clipboard = Native.ListenClipboard(_hwnd);
+        if (shell || clipboard) HwndSource.FromHwnd(_hwnd).AddHook(OnShellMessage);
     }
 
     protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
@@ -214,6 +272,7 @@ public partial class MainWindow : Window
 
     IntPtr OnShellMessage(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
+        if (msg == Native.ClipboardUpdateMessage) { Copied(); return IntPtr.Zero; }
         switch (Native.MediaKeyOf(msg, wParam, lParam))
         {
             case Native.MediaKey.VolumeUp when IsVolumeAtLimit(true):
@@ -236,31 +295,36 @@ public partial class MainWindow : Window
 
     async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        CenterOnScreen();
-        SystemEvents.DisplaySettingsChanged += (_, _) => Dispatcher.InvokeAsync(CenterOnScreen);
+        Place();
+        SystemEvents.DisplaySettingsChanged += (_, _) =>
+        {
+            _screens = null;
+            Dispatcher.InvokeAsync(Place);
+        };
         UpdateClock();
         UpdateSwitches(false);
         RefreshLookPage();
-        RefreshUpdatePage();
+        ApplyFonts();
+        UpdatePosition();
+        RefreshUpdate();
         SyncAccent(false);
         SyncShelf();
         SyncGlass(false);
+        SyncClip();
+        if (Settings.Bridge) OpenBridge(); else RefreshPhone();
         PlayIntro();
         _ticker.Start();
         if (_forcedTimerSeconds > 0) StartTimer(TimeSpan.FromSeconds(_forcedTimerSeconds));
-        if (_forcedView == View.Update) _ = _updater.CheckAsync();
+        if (string.Equals(Argument("--view"), "Update", StringComparison.OrdinalIgnoreCase)) OpenUpdate();
 
         try { await _media.StartAsync(); }
         catch (Exception ex) { App.Log(ex); }
         try { await _network.StartAsync(); }
         catch (Exception ex) { App.Log(ex); }
-    }
-
-    void CenterOnScreen()
-    {
-        Left = (SystemParameters.PrimaryScreenWidth - Width) / 2;
-        Top = 0;
-        _glass.Place();
+        try { await _mic.StartAsync(); }
+        catch (Exception ex) { App.Log(ex); }
+        InfoMic.SetVisible(_mic.InUse);
+        await ApplyNotices();
     }
 
     void PlayIntro()
@@ -274,9 +338,14 @@ public partial class MainWindow : Window
 
     void Exit()
     {
+        // dropping the field first keeps the window's Closed handler from bringing the island back mid-shutdown
+        UpdateWindow? window = _updateWindow;
+        _updateWindow = null;
+        window?.Close();
         _ticker.Stop();
         _alarm.Stop();
         _glass.Hide();
+        _bridge.Stop();
         var fade = new DoubleAnimation(0, Ms(220));
         fade.Completed += (_, _) => Application.Current.Shutdown();
         Root.BeginAnimation(OpacityProperty, fade);
@@ -314,12 +383,15 @@ public partial class MainWindow : Window
             Panel.Menu => View.Menu,
             Panel.Settings => View.Settings,
             Panel.Look => View.Look,
-            Panel.Update => View.Update,
+            Panel.Position => View.Position,
+            Panel.Fonts => View.Fonts,
             Panel.Shelf => View.Shelf,
+            Panel.Phone => View.Phone,
             Panel.TimerSet => View.TimerSet,
             Panel.Timer when _countdown.IsActive => View.TimerBig,
             Panel.Timer or Panel.Player => _media.HasTrack ? View.MediaBig : View.IdleBig,
             _ => _transientView ?? (_updater.State == Updater.Stage.Loading ? View.Loading
+                : _pairAsk != null ? View.PairAsk
                 : IsMediaActive ? View.Media : _countdown.IsActive ? View.Timer : View.Idle),
         };
         return target == View.Toast && !_media.HasTrack ? View.Idle : target;
@@ -382,15 +454,14 @@ public partial class MainWindow : Window
     }
 
     static int MenuDirection(View from, View to) =>
-        from == View.Menu && MenuPages.Contains(to) || (from, to) == (View.Settings, View.Update) ? 1
-        : to == View.Menu && MenuPages.Contains(from) || (from, to) == (View.Update, View.Settings) ? -1 : 0;
+        (from == View.Menu || from == View.Settings) && MenuPages.Contains(to) ? 1
+        : (to == View.Menu || to == View.Settings) && MenuPages.Contains(from) ? -1 : 0;
 
     PillShape ShapeOf(View view) => view switch
     {
         View.Media => PillShapes[view] with { Width = _compactMediaWidth },
         View.MediaBig when _playerHasLyricRoom => PillShapes[view] with { Height = PlayerHeight + PlayerLyricsHeight },
-        View.Update => PillShapes[view] with { Height = UpdatePage.Height },
-        View.Look => PillShapes[view] with { Height = LookView.Height },
+        View.Menu or View.Settings or View.Look or View.Position or View.Fonts or View.Phone => PillShapes[view] with { Height = _views[view].Height },
         _ => PillShapes[view],
     };
 
@@ -415,12 +486,14 @@ public partial class MainWindow : Window
         _panel = panel;
         _transientView = null;
         _transientTimeout.Cancel();
+        DisarmExit();
         SilenceAlarm();
     }
 
     void ShowPanel(Panel panel)
     {
         _panel = panel;
+        DisarmExit();
         UpdateView();
     }
 

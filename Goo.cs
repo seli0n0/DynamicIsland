@@ -20,7 +20,7 @@ public sealed class Goo : FrameworkElement
     static readonly (double At, double Level)[] FlashFrames = [(0, 0), (0.04, 1), (0.13, 0.3), (0.19, 0.9), (0.5, 0), (1, 0)];
 
     readonly SolidColorBrush _rim = new(PlainRim), _fill = new(Colors.Black);
-    readonly Light _flash = new();
+    readonly Light _beat = new(), _flash = new();
     readonly Pen _edge;
 
     Rect _pill = Rect.Empty, _bubble = Rect.Empty;
@@ -32,6 +32,16 @@ public sealed class Goo : FrameworkElement
     {
         Color to = color is { } c ? Color.FromArgb(TintedAlpha, c.R, c.G, c.B) : PlainRim;
         _rim.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(to, time));
+        var lit = new ColorAnimation(color ?? Colors.White, time);
+        _beat.Edge.BeginAnimation(SolidColorBrush.ColorProperty, lit);
+        _beat.Mist.BeginAnimation(SolidColorBrush.ColorProperty, lit);
+    }
+
+    public void Beat(double level)
+    {
+        level = Math.Clamp(level, 0, 1);
+        _beat.Edge.Opacity = level;
+        _beat.Mist.Opacity = level * HazeOpacity;
     }
 
     public (Rect Box, double Radius) PillInside => Inside(_pill, _radius);
@@ -111,9 +121,11 @@ public sealed class Goo : FrameworkElement
 
         dc.PushClip(outside);
         dc.DrawGeometry(null, _edge, body);
+        dc.DrawGeometry(null, _beat.Line, body);
         dc.DrawGeometry(null, _flash.Line, body);
         dc.Pop();
         dc.DrawGeometry(_fill, null, body);
+        foreach (Pen mist in _beat.Mists) dc.DrawGeometry(null, mist, body);
         foreach (Pen mist in _flash.Mists) dc.DrawGeometry(null, mist, body);
     }
 

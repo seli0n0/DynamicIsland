@@ -8,7 +8,7 @@ public enum Glyph
 {
     Mute, Quiet, Mid, Loud, Headphones, Speaker, Vpn, Offline, Wifi, Wired, Bell, Note, Battery, Minus, Plus, Chevron, Back,
     Clock, Gear, Lines, Sparkle, Rim, Expand, Windows, Power, Look, Size, Gap, Drop, Moon, Tray, Cross, Bolt, VpnOff, Bars, Update,
-    Segments, Stars, Pointer,
+    Segments, Pin, Edge, Font, Check, Clip, Mic, Pulse, Phone, Stars, Pointer,
 }
 
 public sealed class Icon : FrameworkElement
@@ -108,6 +108,20 @@ public sealed class Icon : FrameworkElement
         [Glyph.Tray] = new(Lines: "M4,13.5 L6.4,6.2 A1.6,1.6 0 0 1 7.9,5.1 H16.1 A1.6,1.6 0 0 1 17.6,6.2 L20,13.5 V17.6 A2,2 0 0 1 18,19.6"
             + " H6 A2,2 0 0 1 4,17.6 Z M4,13.5 H8.6 L9.8,15.6 H14.2 L15.4,13.5 H20"),
         [Glyph.Cross] = new(Lines: "M7.5,7.5 L16.5,16.5 M16.5,7.5 L7.5,16.5", Line: 2.6),
+        [Glyph.Pin] = new("M12,2.8 C8.1,2.8 4.9,6 4.9,9.9 C4.9,14.8 12,21.2 12,21.2 C12,21.2 19.1,14.8 19.1,9.9 C19.1,6 15.9,2.8 12,2.8 Z",
+            Cut: "M12,9.7 L12.01,9.7", Gap: 3.6),
+        [Glyph.Edge] = new("M4.8,4.2 H19.2 A1.8,1.8 0 0 1 19.2,7.8 H4.8 A1.8,1.8 0 0 1 4.8,4.2 Z",
+            Lines: "M5.4,4.6 H18.6 A2,2 0 0 1 20.6,6.6 V18 A2,2 0 0 1 18.6,20 H5.4 A2,2 0 0 1 3.4,18 V6.6 A2,2 0 0 1 5.4,4.6 Z",
+            Line: 1.8),
+        [Glyph.Font] = new(Lines: "M4.6,19.4 L12,4.6 L19.4,19.4 M7.8,13.6 H16.2", Line: 2.2),
+        [Glyph.Check] = new(Lines: "M4.8,12.6 L9.8,17.6 L19.2,6.4", Line: 2.4),
+        [Glyph.Clip] = new(Lines: "M8.6,4.4 H6.5 A2,2 0 0 0 4.5,6.4 V19 A2,2 0 0 0 6.5,21 H17.5 A2,2 0 0 0 19.5,19 V6.4"
+            + " A2,2 0 0 0 17.5,4.4 H15.4 M8.6,4.4 V3 A1.4,1.4 0 0 1 10,1.6 H14 A1.4,1.4 0 0 1 15.4,3 V4.4 Z", Line: 1.9),
+        [Glyph.Mic] = new("M12,2.6 A2.9,2.9 0 0 1 14.9,5.5 V10.4 A2.9,2.9 0 0 1 9.1,10.4 V5.5 A2.9,2.9 0 0 1 12,2.6 Z",
+            "M5.6,10.6 A6.4,6.4 0 0 0 18.4,10.6 M12,17 V20.6 M8.9,20.6 H15.1", 1.9),
+        [Glyph.Pulse] = new(Lines: "M3.4,12.4 H7.6 L9.8,6.6 L13.4,17.6 L15.6,12.4 H20.6", Line: 2.1),
+        [Glyph.Phone] = new(Lines: "M9.2,3.4 H14.8 A2.2,2.2 0 0 1 17,5.6 V18.4 A2.2,2.2 0 0 1 14.8,20.6 H9.2 A2.2,2.2 0 0 1 7,18.4"
+            + " V5.6 A2.2,2.2 0 0 1 9.2,3.4 Z M10.4,6.4 H13.6 M12,17.2 L12.01,17.2", Line: 1.8),
     };
 
     static readonly Dictionary<Glyph, Geometry> Outlines = [];

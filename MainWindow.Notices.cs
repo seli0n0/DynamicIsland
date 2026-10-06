@@ -46,6 +46,38 @@ public partial class MainWindow
             NoticeSize.AnimateScale(Delayed(0.6, 1, NoticeIconDelay, run, new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 1, Springiness = 5 }));
     }
 
+    void OnMicChanged(string[] was, string[] now)
+    {
+        InfoMic.SetVisible(now.Length > 0);
+        if (!Settings.Mic) return;
+
+        if (now.Length == 0)
+        {
+            Notify(Glyph.Mic, _dim, "Микрофон свободен", "Запись прекращена");
+            return;
+        }
+        Notify(Glyph.Mic, _red, "Микрофон занят", string.Join(", ", now));
+    }
+
+    void OnNoticeRaised(string who, string what)
+    {
+        if (!Settings.Notices) return;
+        Notify(Glyph.Note, _indigo, who, what);
+    }
+
+    async Task ApplyNotices()
+    {
+        try
+        {
+            if (Settings.Notices) await _notices.StartAsync();
+            else _notices.Stop();
+            if (Settings.Notices && !_notices.Live)
+                Notify(Glyph.Note, _dim, "Уведомления Windows",
+                    "Система не дала доступ · разрешите в «Параметры → Уведомления»");
+        }
+        catch (Exception ex) { App.Log(ex); }
+    }
+
     void OnNetworkChanged(NetworkService.State was, NetworkService.State now)
     {
         if (!Settings.Network) return;

@@ -136,7 +136,9 @@ public partial class MainWindow
 
         IslandScale.ScaleX = IslandScale.ScaleY = scale;
         RootSize.ScaleX = RootSize.ScaleY = size;
-        RootMove.Y = _offsetY.Value + _topGap.Value / size;
+        double away = _offsetY.Value + _topGap.Value / size;
+        RootMove.Y = _growsUp ? -away + Placement.Cross / size - h * scale : away;
+        TurnAlong.X = Placement.AlongShift(Settings.Edge, Settings.Anchor, w * scale, size);
         RootLean.X = Math.Round(_leanX.Value * size * dpi) / (size * dpi);
         double sharp = size * scale * dpi;
         if (Math.Abs(_lyricCache.RenderAtScale - sharp) > CacheScaleTolerance) _lyricCache.RenderAtScale = sharp;
