@@ -6,7 +6,7 @@
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ShowInTaskbar="False" ShowActivated="False" Topmost="True" ResizeMode="NoResize"
         Focusable="False" UseLayoutRounding="True"
-        FontFamily="./Fonts/#SF Pro Text, SF Pro Text, Segoe UI Variable Display, Segoe UI" Foreground="White">
+        FontFamily="{DynamicResource Face}" Foreground="White">
 
     <Window.Resources>
         <SolidColorBrush x:Key="Dim" Color="#99FFFFFF"/>
@@ -16,7 +16,8 @@
         <SolidColorBrush x:Key="Indigo" Color="#7D7AFF"/>
         <SolidColorBrush x:Key="Faint" Color="#66FFFFFF"/>
 
-        <FontFamily x:Key="Display">./Fonts/#SF Pro Display, SF Pro Display, Segoe UI Variable Display, Segoe UI</FontFamily>
+        <FontFamily x:Key="Face">./Fonts/#SF Pro Text, SF Pro Text, Segoe UI Variable Display, Segoe UI</FontFamily>
+        <FontFamily x:Key="FaceDisplay">./Fonts/#SF Pro Display, SF Pro Display, Segoe UI Variable Display, Segoe UI</FontFamily>
 
         <LinearGradientBrush x:Key="ArtPlaceholder" StartPoint="0,0" EndPoint="1,1">
             <GradientStop Color="#48484A" Offset="0"/>
@@ -91,13 +92,13 @@
         <Style x:Key="RowButton" TargetType="Button">
             <Setter Property="Focusable" Value="False"/>
             <Setter Property="Foreground" Value="White"/>
-            <Setter Property="FontSize" Value="13.5"/>
-            <Setter Property="Height" Value="40"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Height" Value="30"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="Transparent" Padding="12,0">
+                        <Border Background="Transparent" Padding="11,0">
                             <ContentPresenter VerticalAlignment="Center"/>
                         </Border>
                     </ControlTemplate>
@@ -112,15 +113,15 @@
         </Style>
 
         <Style x:Key="BackButton" TargetType="Button" BasedOn="{StaticResource RowButton}">
-            <Setter Property="Height" Value="32"/>
-            <Setter Property="Margin" Value="0,0,0,2"/>
+            <Setter Property="Height" Value="26"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="Transparent" Padding="12,0">
+                        <Border Background="Transparent" Padding="11,0">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <local:Icon Kind="Back" Width="10" Height="10" Fill="{StaticResource Faint}" VerticalAlignment="Center"/>
-                                <TextBlock Style="{StaticResource Caption}" Margin="6,0,0,0" VerticalAlignment="Center"
+                                <local:Icon Kind="Back" Width="9" Height="9" Fill="{StaticResource Faint}" VerticalAlignment="Center"/>
+                                <TextBlock Style="{StaticResource Caption}" Margin="7,0,0,0" VerticalAlignment="Center"
                                            Text="{Binding Content, RelativeSource={RelativeSource TemplatedParent}}"/>
                             </StackPanel>
                         </Border>
@@ -130,15 +131,15 @@
         </Style>
 
         <Style x:Key="RowIcon" TargetType="local:Icon">
-            <Setter Property="Width" Value="17"/>
-            <Setter Property="Height" Value="17"/>
+            <Setter Property="Width" Value="15"/>
+            <Setter Property="Height" Value="15"/>
             <Setter Property="Fill" Value="{StaticResource Dim}"/>
             <Setter Property="HorizontalAlignment" Value="Left"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
 
         <Style x:Key="RowLabel" TargetType="TextBlock">
-            <Setter Property="Margin" Value="29,0,0,0"/>
+            <Setter Property="Margin" Value="26,0,0,0"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
 
@@ -153,12 +154,69 @@
         </Style>
 
         <Style x:Key="RowSwitch" TargetType="local:Toggle">
-            <Setter Property="Width" Value="46"/>
-            <Setter Property="Height" Value="22"/>
+            <Setter Property="Width" Value="38"/>
+            <Setter Property="Height" Value="20"/>
             <Setter Property="HorizontalAlignment" Value="Right"/>
         </Style>
 
+        <!-- A plate of related rows: the settings pages are read as cards, not as one long list. -->
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="#0DFFFFFF"/>
+            <Setter Property="CornerRadius" Value="13"/>
+            <Setter Property="Padding" Value="3"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+        </Style>
+
+        <Style x:Key="Tile" TargetType="Button">
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Plate" Background="#0DFFFFFF" CornerRadius="13">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Plate" Property="Background" Value="#1AFFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Plate" Property="Background" Value="#2EFFFFFF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="TileLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="{StaticResource Dim}"/>
+            <Setter Property="Margin" Value="0,5,0,0"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+        </Style>
+
         <local:ChipCorners x:Key="ChipCorners"/>
+
+        <Style x:Key="PeekRow" TargetType="Button">
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Plate" Background="Transparent" CornerRadius="9" Padding="9,0">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Plate" Property="Background" Value="#26FFFFFF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
         <Style x:Key="ChipButton" TargetType="Button">
             <Setter Property="Focusable" Value="False"/>
@@ -287,7 +345,16 @@
 
     </Window.Resources>
 
-    <Grid x:Name="Root" Width="620" Height="410" Opacity="0"
+    <Grid x:Name="TurnRoot">
+        <Grid.RenderTransform>
+            <TransformGroup>
+                <TranslateTransform x:Name="TurnAlong"/>
+                <RotateTransform x:Name="TurnSpin" CenterX="380" Angle="0"/>
+                <TranslateTransform x:Name="TurnShift"/>
+            </TransformGroup>
+        </Grid.RenderTransform>
+
+    <Grid x:Name="Root" Width="620" Height="700" Opacity="0"
           HorizontalAlignment="Center" VerticalAlignment="Top" RenderTransformOrigin="0.5,0"
           MouseLeftButtonDown="Root_MouseLeftButtonDown" MouseLeftButtonUp="Root_MouseLeftButtonUp"
           MouseMove="Root_MouseMove"
@@ -452,6 +519,31 @@
                     </StackPanel>
                 </Grid>
 
+                <!-- The ask that waits for an answer, with the answer built into it: see PairAskView in MainWindow.Phone.cs. -->
+                <Grid x:Name="PairAskView" Width="380" Height="84" HorizontalAlignment="Center" VerticalAlignment="Top">
+                    <Border Width="40" Height="40" CornerRadius="11" Background="#1FFF9F0A"
+                            HorizontalAlignment="Left" VerticalAlignment="Center" Margin="14,0,0,0">
+                        <local:Icon Kind="Phone" Width="22" Height="22" Fill="{StaticResource Orange}"/>
+                    </Border>
+                    <StackPanel Margin="66,0,150,0" VerticalAlignment="Center">
+                        <TextBlock Text="Телефон просит пару" FontSize="14" FontWeight="SemiBold"
+                                   TextTrimming="CharacterEllipsis"/>
+                        <TextBlock x:Name="PairAskWho" FontSize="12" Foreground="{StaticResource Dim}" Margin="0,1,0,0"
+                                   TextTrimming="CharacterEllipsis"/>
+                        <TextBlock x:Name="PairAskCode" FontSize="11" Foreground="{StaticResource Faint}" Margin="0,2,0,0"
+                                   TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,14,0">
+                        <Button Style="{StaticResource ChipButton}" Width="34" Height="34" Background="#1FFF453A"
+                                Click="PairNo_Click">
+                            <local:Icon Kind="Cross" Width="14" Height="14" Fill="{StaticResource Red}"/>
+                        </Button>
+                        <Button Style="{StaticResource ChipButton}" Width="98" Height="34" Margin="6,0,0,0"
+                                Background="#2230D158" Foreground="{StaticResource Green}" FontWeight="SemiBold"
+                                Content="Разрешить" Click="PairYes_Click"/>
+                    </StackPanel>
+                </Grid>
+
                 <Grid x:Name="MediaBigView" Width="380" Height="176" HorizontalAlignment="Center" VerticalAlignment="Top">
                     <local:Aura x:Name="Glow" Height="176" VerticalAlignment="Bottom" IsHitTestVisible="False"/>
                     <local:StarField x:Name="PlayerStars" Height="176" VerticalAlignment="Bottom" IsHitTestVisible="False" Visibility="Collapsed"/>
@@ -537,10 +629,12 @@
                 <Grid x:Name="IdleBigView" Width="320" Height="124" HorizontalAlignment="Center" VerticalAlignment="Top">
                     <StackPanel Margin="26,0,0,2" HorizontalAlignment="Left" VerticalAlignment="Center">
                         <local:Digits x:Name="BigClock" Text="00:00" FontSize="46" FontWeight="SemiBold"
-                                      FontFamily="{StaticResource Display}"/>
+                                      FontFamily="{DynamicResource FaceDisplay}"/>
                         <StackPanel Orientation="Horizontal" Margin="2,-4,0,0">
                             <TextBlock x:Name="BigDate" FontSize="13" Foreground="{StaticResource Dim}"/>
                             <local:Icon x:Name="InfoFocus" Kind="Moon" Width="13" Height="13" Fill="{StaticResource Indigo}"
+                                        Margin="6,1,0,0" VerticalAlignment="Center" Visibility="Collapsed"/>
+                            <local:Icon x:Name="InfoMic" Kind="Mic" Width="13" Height="13" Fill="{StaticResource Red}"
                                         Margin="6,1,0,0" VerticalAlignment="Center" Visibility="Collapsed"/>
                         </StackPanel>
                     </StackPanel>
@@ -590,12 +684,20 @@
                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Grid>
                         </Button>
+                        <Button Style="{StaticResource IconButton}" Width="44" Height="44" Margin="8,0,0,0"
+                                Click="TimerAdd5_Click" AutomationProperties.Name="Ещё пять минут">
+                            <Grid Width="44" Height="44">
+                                <Ellipse Fill="#2EFFFFFF"/>
+                                <TextBlock Text="+5" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource Orange}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,1,0,0"/>
+                            </Grid>
+                        </Button>
                     </StackPanel>
                     <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,26,2">
                         <TextBlock x:Name="BigTimerLabel" Text="Таймер" FontSize="12"
                                    Opacity="0.8" HorizontalAlignment="Right"/>
                         <local:Digits x:Name="BigTimer" Text="25:00" FontSize="40" FontWeight="SemiBold"
-                                      FontFamily="{StaticResource Display}"
+                                      FontFamily="{DynamicResource FaceDisplay}"
                                       HorizontalAlignment="Right" Margin="0,-4,0,0"/>
                     </StackPanel>
                 </Grid>
@@ -608,7 +710,7 @@
                                 <local:Icon Kind="Minus" Width="16" Height="16"/>
                             </Button>
                             <local:Digits x:Name="SetupText" Text="25:00" FontSize="38" FontWeight="SemiBold"
-                                          FontFamily="{StaticResource Display}"
+                                          FontFamily="{DynamicResource FaceDisplay}"
                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             <Button Style="{StaticResource IconButton}" HorizontalAlignment="Right" Click="TimerMore_Click">
                                 <local:Icon Kind="Plus" Width="16" Height="16"/>
@@ -627,235 +729,474 @@
                     </StackPanel>
                 </Grid>
 
-                <Grid x:Name="MenuView" Width="300" Height="248" HorizontalAlignment="Center" VerticalAlignment="Top">
-                    <local:RowList Margin="10,14,10,0">
-                        <TextBlock Style="{StaticResource Caption}" Text="DYNAMIC ISLAND" Margin="12,0,0,6"/>
-                        <Button Style="{StaticResource RowButton}" Click="TimerRow_Click">
-                            <Grid>
-                                <local:Icon Style="{StaticResource RowIcon}" Kind="Clock"/>
-                                <TextBlock Style="{StaticResource RowLabel}" Text="Таймер"/>
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                    <local:Digits x:Name="MenuTimer" VerticalAlignment="Center"/>
-                                    <local:Icon Style="{StaticResource RowChevron}" Margin="8,1,0,0"/>
-                                </StackPanel>
-                            </Grid>
-                        </Button>
-                        <Button Style="{StaticResource RowButton}" Click="ShelfRow_Click">
-                            <Grid>
-                                <local:Icon Style="{StaticResource RowIcon}" Kind="Tray"/>
-                                <TextBlock Style="{StaticResource RowLabel}" Text="Полка"/>
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                    <local:Digits x:Name="MenuShelf" Foreground="{StaticResource Dim}" VerticalAlignment="Center"/>
-                                    <local:Icon Style="{StaticResource RowChevron}" Margin="8,1,0,0"/>
-                                </StackPanel>
-                            </Grid>
-                        </Button>
-                        <Button Style="{StaticResource RowButton}" Click="SettingsRow_Click">
-                            <Grid>
-                                <local:Icon Style="{StaticResource RowIcon}" Kind="Gear"/>
-                                <TextBlock Style="{StaticResource RowLabel}" Text="Настройки"/>
-                                <local:Icon Style="{StaticResource RowChevron}"/>
-                            </Grid>
-                        </Button>
-                        <Button Style="{StaticResource RowButton}" Click="LookRow_Click">
-                            <Grid>
-                                <local:Icon Style="{StaticResource RowIcon}" Kind="Look"/>
-                                <TextBlock Style="{StaticResource RowLabel}" Text="Оформление"/>
-                                <local:Icon Style="{StaticResource RowChevron}"/>
-                            </Grid>
-                        </Button>
-                        <Button Style="{StaticResource RowButton}" Click="Exit_Click">
-                            <Grid>
-                                <local:Icon Style="{StaticResource RowIcon}" Kind="Power" Fill="{StaticResource Red}"/>
-                                <TextBlock Style="{StaticResource RowLabel}" Text="Закрыть остров" Foreground="{StaticResource Red}"/>
-                            </Grid>
-                        </Button>
-                    </local:RowList>
-                </Grid>
-
-                <Grid x:Name="SettingsView" Width="320" Height="374" HorizontalAlignment="Center" VerticalAlignment="Top">
-                    <local:RowList Margin="10,8,10,0">
-                        <Button Style="{StaticResource BackButton}" Content="НАСТРОЙКИ" Click="SettingsBack_Click"/>
-                        <Button Style="{StaticResource RowButton}" Click="Lyrics_Click">
-                            <Grid>
-                                <local:Icon Style="{StaticResource RowIcon}" Kind="Lines"/>
-                                <TextBlock Style="{StaticResource RowLabel}" Text="Текст песен"/>
-                                <local:Toggle x:Name="LyricsSwitch" Style="{StaticResource RowSwitch}"/>
-                            </Grid>
-                        </Button>
-                        <Button Style="{StaticResource RowButton}" Click="LyricEffects_Click">
-                            <Grid>
-                                <local:Icon Style="{StaticResource RowIcon}" Kind="Sparkle"/>
-                                <TextBlock Style="{StaticResource RowLabel}" Text="Эффекты текста"/>
-                                <local:Toggle x:Name="LyricEffectsSwitch" Style="{StaticResource RowSwitch}"/>
-                            </Grid>
-                        </Button>
-                        <Button Style="{StaticResource RowButton}" Click="Rim_Click">
-                            <Grid>
-                                <local:Icon Style="{StaticResource RowIcon}" Kind="Rim"/>
-                                <TextBlock Style="{StaticResource RowLabel}" Text="Цветной ободок"/>
-                                <local:Toggle x:Name="RimSwitch" Style="{StaticResource RowSwitch}"/>
-                            </Grid>
-                        </Button>
-                        <Button Style="{StaticResource RowButton}" Click="AppVolume_Click">
-                            <Grid>
-                                <local:Icon Style="{StaticResource RowIcon}" Kind="Mid"/>
-                                <TextBlock Style="{StaticResource RowLabel}" Text="Громкость приложения"/>
-                                <local:Toggle x:Name="AppVolumeSwitch" Style="{StaticResource RowSwitch}"/>
-                            </Grid>
-                        </Button>
-                        <Button Style="{StaticResource RowButton}" Click="Network_Click">
-                            <Grid>
-                                <local:Icon Style="{StaticResource RowIcon}" Kind="Wifi"/>
-                                <TextBlock Style="{StaticResource RowLabel}" Text="Уведомления о сети"/>
-                                <local:Toggle x:Name="NetworkSwitch" Style="{StaticResource RowSwitch}"/>
-                            </Grid>
-                        </Button>
-                        <Button Style="{StaticResource RowButton}" Click="Fullscreen_Click">
-                            <Grid>
-                                <local:Icon Style="{StaticResource RowIcon}" Kind="Expand"/>
-                                <TextBlock Style="{StaticResource RowLabel}" Text="Скрывать на полном экране"/>
-                                <local:Toggle x:Name="FullscreenSwitch" Style="{StaticResource RowSwitch}"/>
-                            </Grid>
-                        </Button>
-                        <Button Style="{StaticResource RowButton}" Click="Autostart_Click">
-                            <Grid>
-                                <local:Icon Style="{StaticResource RowIcon}" Kind="Windows"/>
-                                <TextBlock Style="{StaticResource RowLabel}" Text="Запускать с Windows"/>
-                                <local:Toggle x:Name="AutostartSwitch" Style="{StaticResource RowSwitch}"/>
-                            </Grid>
-                        </Button>
-                        <Button Style="{StaticResource RowButton}" Click="UpdateRow_Click">
-                            <Grid>
-                                <local:Icon Style="{StaticResource RowIcon}" Kind="Update"/>
-                                <TextBlock Style="{StaticResource RowLabel}" Text="Обновление"/>
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                    <TextBlock x:Name="UpdateText" Foreground="{StaticResource Dim}" VerticalAlignment="Center"/>
-                                    <local:Icon Style="{StaticResource RowChevron}" Margin="8,1,0,0"/>
-                                </StackPanel>
-                            </Grid>
-                        </Button>
-                    </local:RowList>
-                </Grid>
-
-                <Grid x:Name="UpdatePage" Width="320" Height="150" HorizontalAlignment="Center" VerticalAlignment="Top">
-                    <StackPanel x:Name="UpdateBody" Margin="10,8,10,0" VerticalAlignment="Top">
-                        <local:RowList>
-                            <Button Style="{StaticResource BackButton}" Content="ОБНОВЛЕНИЕ" Click="UpdateBack_Click"/>
-                        </local:RowList>
-                        <StackPanel Orientation="Horizontal" Margin="12,2,12,0">
-                            <TextBlock x:Name="UpdateVersion" FontSize="30" FontWeight="SemiBold" Foreground="White"
-                                       FontFamily="{StaticResource Display}"/>
-                            <TextBlock x:Name="UpdateFrom" FontSize="13.5" Foreground="{StaticResource Dim}"
-                                       Margin="9,0,0,5" VerticalAlignment="Bottom"/>
-                        </StackPanel>
-                        <StackPanel x:Name="UpdateNotes" Margin="12,10,12,0">
-                            <TextBlock Style="{StaticResource Caption}" Text="ЧТО НОВОГО"/>
-                            <TextBlock x:Name="UpdateNotesText" FontSize="12.5" Foreground="{StaticResource Dim}" Margin="0,5,0,0"
-                                       TextWrapping="Wrap" LineHeight="18" LineStackingStrategy="BlockLineHeight"/>
-                        </StackPanel>
-                        <Grid Height="36" Margin="4,14,4,0">
-                            <Button x:Name="UpdateButton" Style="{StaticResource ChipButton}" Height="36" Margin="0"
-                                    FontSize="13.5" FontWeight="SemiBold" Click="Update_Click"/>
-                            <Grid x:Name="UpdateLoad" Margin="8,0" Visibility="Collapsed">
-                                <local:Ring x:Name="UpdateRing" Width="22" Height="22" Thickness="3" Progress="0"
-                                            Stroke="{StaticResource Orange}" RenderTransformOrigin="0.5,0.5"
-                                            HorizontalAlignment="Left" VerticalAlignment="Center">
-                                    <local:Ring.RenderTransform>
-                                        <ScaleTransform ScaleX="-1"/>
-                                    </local:Ring.RenderTransform>
-                                </local:Ring>
-                                <TextBlock Text="Скачиваю" FontSize="13.5" Foreground="White" Margin="34,0,0,0" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="UpdateBytes" FontSize="13.5" Foreground="{StaticResource Dim}"
-                                           HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                            </Grid>
-                        </Grid>
+                <Grid x:Name="MenuView" Width="300" Height="133" HorizontalAlignment="Center" VerticalAlignment="Top">
+                    <StackPanel x:Name="MenuBody" Margin="8,10,8,0">
+                        <TextBlock Style="{StaticResource Caption}" Text="DYNAMIC ISLAND" Margin="12,0,0,7"/>
+                        <Border Style="{StaticResource Card}" Margin="0">
+                            <local:RowList>
+                                <Button Style="{StaticResource RowButton}" Click="TimerRow_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Clock"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Таймер"/>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                            <local:Digits x:Name="MenuTimer" VerticalAlignment="Center"/>
+                                            <local:Icon Style="{StaticResource RowChevron}" Margin="8,1,0,0"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Button>
+                                <Button Style="{StaticResource RowButton}" Click="ShelfRow_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Tray"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Полка"/>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                            <local:Digits x:Name="MenuShelf" Foreground="{StaticResource Dim}" VerticalAlignment="Center"/>
+                                            <local:Icon Style="{StaticResource RowChevron}" Margin="8,1,0,0"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Button>
+                                <Button Style="{StaticResource RowButton}" Click="PhoneRow_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Phone"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Телефон"/>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                            <local:Digits x:Name="MenuPhone" Foreground="{StaticResource Dim}" VerticalAlignment="Center"/>
+                                            <local:Icon Style="{StaticResource RowChevron}" Margin="8,1,0,0"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Button>
+                                <Button Style="{StaticResource RowButton}" Click="SettingsRow_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Gear"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Настройки"/>
+                                        <local:Icon Style="{StaticResource RowChevron}"/>
+                                    </Grid>
+                                </Button>
+                            </local:RowList>
+                        </Border>
                     </StackPanel>
                 </Grid>
 
-                <Grid x:Name="LookView" Width="320" Height="368" HorizontalAlignment="Center" VerticalAlignment="Top">
-                    <local:RowList Margin="10,8,10,0">
-                        <Button Style="{StaticResource BackButton}" Content="ОФОРМЛЕНИЕ" Click="SettingsBack_Click"/>
-                        <Button x:Name="SizeRow" Style="{StaticResource RowButton}" Click="Size_Click">
-                            <Grid>
-                                <local:Icon Style="{StaticResource RowIcon}" Kind="Size"/>
-                                <TextBlock Style="{StaticResource RowLabel}" Text="Размер"/>
-                                <local:Digits x:Name="SizeText" Foreground="{StaticResource Dim}"
-                                              HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                            </Grid>
-                        </Button>
-                        <Button x:Name="GapRow" Style="{StaticResource RowButton}" Click="Gap_Click">
-                            <Grid>
-                                <local:Icon Style="{StaticResource RowIcon}" Kind="Gap"/>
-                                <TextBlock Style="{StaticResource RowLabel}" Text="Отступ от края"/>
-                                <local:Digits x:Name="GapText" Foreground="{StaticResource Dim}"
-                                              HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                            </Grid>
-                        </Button>
-                        <Button Style="{StaticResource RowButton}" Click="Dots_Click">
-                            <Grid>
-                                <local:Icon Style="{StaticResource RowIcon}" Kind="Bars"/>
-                                <TextBlock Style="{StaticResource RowLabel}" Text="Эквалайзер"/>
-                                <TextBlock x:Name="DotsText" Foreground="{StaticResource Dim}"
-                                           HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                            </Grid>
-                        </Button>
-                        <Button Style="{StaticResource RowButton}" Click="SeekStyle_Click">
-                            <Grid>
-                                <local:Icon Style="{StaticResource RowIcon}" Kind="Segments"/>
-                                <TextBlock Style="{StaticResource RowLabel}" Text="Полоса трека"/>
-                                <TextBlock x:Name="SeekStyleText" Foreground="{StaticResource Dim}"
-                                           HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                            </Grid>
-                        </Button>
-                        <Button Style="{StaticResource RowButton}" Click="Backdrop_Click">
-                            <Grid>
-                                <local:Icon Style="{StaticResource RowIcon}" Kind="Stars"/>
-                                <TextBlock Style="{StaticResource RowLabel}" Text="Фон плеера"/>
-                                <TextBlock x:Name="BackdropText" Foreground="{StaticResource Dim}"
-                                           HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                            </Grid>
-                        </Button>
-                        <Button Style="{StaticResource RowButton}" Click="LyricChange_Click">
-                            <Grid>
-                                <local:Icon Style="{StaticResource RowIcon}" Kind="Lines"/>
-                                <TextBlock Style="{StaticResource RowLabel}" Text="Смена строки"/>
-                                <TextBlock x:Name="LyricChangeText" Foreground="{StaticResource Dim}"
-                                           HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                            </Grid>
-                        </Button>
-                        <Grid Height="40" Margin="12,0">
-                            <local:Icon Style="{StaticResource RowIcon}" Kind="Drop"/>
-                            <TextBlock Style="{StaticResource RowLabel}" Text="Акцентный цвет" FontSize="13.5"/>
-                            <TextBlock x:Name="AccentText" FontSize="13.5" Foreground="{StaticResource Dim}"
-                                       HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                        </Grid>
-                        <UniformGrid x:Name="AccentStrip" Rows="1" Height="30" Margin="8,0">
-                            <RadioButton Style="{StaticResource Swatch}" Tag="Из обложки" Click="Accent_Click">
-                                <RadioButton.Background>
-                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                        <GradientStop Color="#FF375F" Offset="0"/>
-                                        <GradientStop Color="#FFD60A" Offset="0.35"/>
-                                        <GradientStop Color="#30D158" Offset="0.65"/>
-                                        <GradientStop Color="#0A84FF" Offset="1"/>
-                                    </LinearGradientBrush>
-                                </RadioButton.Background>
-                            </RadioButton>
-                            <RadioButton Style="{StaticResource Swatch}" Background="#FFFFFF" Tag="Белый" Click="Accent_Click"/>
-                            <RadioButton Style="{StaticResource Swatch}" Background="#FF453A" Tag="Красный" Click="Accent_Click"/>
-                            <RadioButton Style="{StaticResource Swatch}" Background="#FF9F0A" Tag="Оранжевый" Click="Accent_Click"/>
-                            <RadioButton Style="{StaticResource Swatch}" Background="#FFD60A" Tag="Жёлтый" Click="Accent_Click"/>
-                            <RadioButton Style="{StaticResource Swatch}" Background="#30D158" Tag="Зелёный" Click="Accent_Click"/>
-                            <RadioButton Style="{StaticResource Swatch}" Background="#64D2FF" Tag="Голубой" Click="Accent_Click"/>
-                            <RadioButton Style="{StaticResource Swatch}" Background="#0A84FF" Tag="Синий" Click="Accent_Click"/>
-                            <RadioButton Style="{StaticResource Swatch}" Background="#BF5AF2" Tag="Фиолетовый" Click="Accent_Click"/>
-                            <RadioButton Style="{StaticResource Swatch}" Background="#FF375F" Tag="Розовый" Click="Accent_Click"/>
+                <Grid x:Name="SettingsView" Width="320" Height="479" HorizontalAlignment="Center" VerticalAlignment="Top">
+                    <StackPanel x:Name="SettingsBody" Margin="8,6,8,0">
+                        <Button Style="{StaticResource BackButton}" Content="НАСТРОЙКИ" Click="SettingsBack_Click"/>
+                        <UniformGrid Rows="1" Height="48" Margin="-3,0,0,0">
+                            <Button Style="{StaticResource Tile}" Margin="3,0" Click="LookRow_Click">
+                                <StackPanel>
+                                    <local:Icon Style="{StaticResource RowIcon}" Kind="Look" Width="18" Height="18"
+                                                HorizontalAlignment="Center"/>
+                                    <TextBlock Style="{StaticResource TileLabel}" Text="Оформление"/>
+                                </StackPanel>
+                            </Button>
+                            <Button Style="{StaticResource Tile}" Margin="3,0" Click="PositionRow_Click">
+                                <StackPanel>
+                                    <local:Icon Style="{StaticResource RowIcon}" Kind="Pin" Width="18" Height="18"
+                                                HorizontalAlignment="Center"/>
+                                    <TextBlock Style="{StaticResource TileLabel}" Text="Положение"/>
+                                </StackPanel>
+                            </Button>
+                            <Button Style="{StaticResource Tile}" Margin="3,0" Click="FontsRow_Click">
+                                <StackPanel>
+                                    <local:Icon Style="{StaticResource RowIcon}" Kind="Font" Width="18" Height="18"
+                                                HorizontalAlignment="Center"/>
+                                    <TextBlock Style="{StaticResource TileLabel}" Text="Шрифты"/>
+                                </StackPanel>
+                            </Button>
                         </UniformGrid>
-                    </local:RowList>
+                        <Border Style="{StaticResource Card}" Margin="0,8,0,8">
+                            <local:RowList>
+                                <Button Style="{StaticResource RowButton}" Click="Lyrics_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Lines"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Текст песен"/>
+                                        <local:Toggle x:Name="LyricsSwitch" Style="{StaticResource RowSwitch}"/>
+                                    </Grid>
+                                </Button>
+                                <Button Style="{StaticResource RowButton}" Click="LyricEffects_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Sparkle"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Эффекты текста"/>
+                                        <local:Toggle x:Name="LyricEffectsSwitch" Style="{StaticResource RowSwitch}"/>
+                                    </Grid>
+                                </Button>
+                                <Button Style="{StaticResource RowButton}" Click="Rim_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Rim"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Цветной ободок"/>
+                                        <local:Toggle x:Name="RimSwitch" Style="{StaticResource RowSwitch}"/>
+                                    </Grid>
+                                </Button>
+                                <Button Style="{StaticResource RowButton}" Click="AppVolume_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Mid"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Громкость приложения"/>
+                                        <local:Toggle x:Name="AppVolumeSwitch" Style="{StaticResource RowSwitch}"/>
+                                    </Grid>
+                                </Button>
+                            </local:RowList>
+                        </Border>
+                        <Border Style="{StaticResource Card}">
+                            <local:RowList>
+                                <Button Style="{StaticResource RowButton}" Click="Network_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Wifi"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Уведомления о сети"/>
+                                        <local:Toggle x:Name="NetworkSwitch" Style="{StaticResource RowSwitch}"/>
+                                    </Grid>
+                                </Button>
+                                <Button Style="{StaticResource RowButton}" Click="Mic_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Mic"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Уведомление о микрофоне"/>
+                                        <local:Toggle x:Name="MicSwitch" Style="{StaticResource RowSwitch}"/>
+                                    </Grid>
+                                </Button>
+                                <Button Style="{StaticResource RowButton}" Click="Notices_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Note"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Уведомления Windows"/>
+                                        <local:Toggle x:Name="NoticesSwitch" Style="{StaticResource RowSwitch}"/>
+                                    </Grid>
+                                </Button>
+                                <Button Style="{StaticResource RowButton}" Click="Fullscreen_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Expand"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Скрывать на полном экране"/>
+                                        <local:Toggle x:Name="FullscreenSwitch" Style="{StaticResource RowSwitch}"/>
+                                    </Grid>
+                                </Button>
+                                <Button Style="{StaticResource RowButton}" Click="Autostart_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Windows"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Запускать с Windows"/>
+                                        <local:Toggle x:Name="AutostartSwitch" Style="{StaticResource RowSwitch}"/>
+                                    </Grid>
+                                </Button>
+                            </local:RowList>
+                        </Border>
+                        <Border Style="{StaticResource Card}">
+                            <local:RowList>
+                                <Button Style="{StaticResource RowButton}" Click="Bridge_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Phone"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Мост с телефоном"/>
+                                        <local:Toggle x:Name="BridgeSwitch" Style="{StaticResource RowSwitch}"/>
+                                    </Grid>
+                                </Button>
+                                <Button Style="{StaticResource RowButton}" Click="BridgeKde_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Windows"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Протокол KDE Connect"/>
+                                        <local:Toggle x:Name="BridgeKdeSwitch" Style="{StaticResource RowSwitch}"/>
+                                    </Grid>
+                                </Button>
+                            </local:RowList>
+                        </Border>
+                        <Border Style="{StaticResource Card}" Margin="0">
+                            <local:RowList>
+                                <Button Style="{StaticResource RowButton}" Click="UpdateRow_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Update"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Обновление"/>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                            <TextBlock x:Name="UpdateText" Foreground="{StaticResource Dim}" VerticalAlignment="Center"/>
+                                            <local:Icon Style="{StaticResource RowChevron}" Margin="8,1,0,0"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Button>
+                            </local:RowList>
+                        </Border>
+                        <Button x:Name="ExitButton" Style="{StaticResource ChipButton}" Height="38" Margin="2,9,2,0"
+                                Background="#22FF453A" Foreground="{StaticResource Red}" FontSize="13"
+                                FontWeight="SemiBold" Click="Exit_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <local:Icon Kind="Power" Width="15" Height="15" Fill="{StaticResource Red}"
+                                            VerticalAlignment="Center"/>
+                                <TextBlock x:Name="ExitLabel" Text="Закрыть остров" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
                 </Grid>
 
-                <Grid x:Name="ShelfView" Width="380" Height="136" HorizontalAlignment="Center" VerticalAlignment="Top">
-                    <Grid Height="22" Margin="22,12,16,0" VerticalAlignment="Top">
+                <Grid x:Name="PhoneView" Width="320" Height="300" HorizontalAlignment="Center" VerticalAlignment="Top">
+                    <StackPanel x:Name="PhoneBody" Margin="8,6,8,0">
+                        <Button Style="{StaticResource BackButton}" Content="ТЕЛЕФОН" Click="PhoneBack_Click"/>
+                        <Border Style="{StaticResource Card}" Padding="10,12">
+                            <StackPanel>
+                                <Border x:Name="CodePlate" Width="172" Height="172" CornerRadius="12" Background="White"
+                                        HorizontalAlignment="Center">
+                                    <Image x:Name="PhoneCode" Width="156" Height="156" VerticalAlignment="Center"
+                                           HorizontalAlignment="Center" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                                </Border>
+                                <TextBlock x:Name="PhoneUrl" Text="—" FontSize="11.5" Foreground="{StaticResource Dim}"
+                                           HorizontalAlignment="Center" Margin="0,10,0,0"/>
+                                <TextBlock x:Name="PhoneNote" FontSize="11" Foreground="{StaticResource Faint}"
+                                           TextAlignment="Center" TextWrapping="Wrap" Margin="4,5,4,0"/>
+                            </StackPanel>
+                        </Border>
+                        <Border x:Name="PairCard" Style="{StaticResource Card}" Padding="12,10" Visibility="Collapsed">
+                            <StackPanel>
+                                <TextBlock Text="Телефон просит пару" FontSize="12.5" FontWeight="SemiBold"
+                                           Foreground="{StaticResource Orange}"/>
+                                <TextBlock x:Name="PairWho" FontSize="12" Margin="0,4,0,0"
+                                           TextTrimming="CharacterEllipsis"/>
+                                <TextBlock x:Name="PairPrint" FontSize="10.5" Foreground="{StaticResource Faint}"
+                                           Margin="0,4,0,0" TextWrapping="Wrap"/>
+                                <Grid Margin="0,9,0,0">
+                                    <Button Style="{StaticResource ChipButton}" HorizontalAlignment="Left" Width="110"
+                                            Height="30" Background="#22FF453A" Foreground="{StaticResource Red}"
+                                            Content="Отклонить" Click="PairNo_Click"/>
+                                    <Button Style="{StaticResource ChipButton}" HorizontalAlignment="Right" Width="110"
+                                            Height="30" Background="#2230D158" Foreground="{StaticResource Green}"
+                                            FontWeight="SemiBold" Content="Разрешить" Click="PairYes_Click"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Card}" Padding="12,9">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,6">
+                                    <TextBlock Text="Мост" FontSize="12" Foreground="{StaticResource Dim}"/>
+                                    <TextBlock x:Name="PhoneState" FontSize="12.5" HorizontalAlignment="Right"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,6">
+                                    <TextBlock Text="Телефон" FontSize="12" Foreground="{StaticResource Dim}"/>
+                                    <TextBlock x:Name="PhoneDevice" FontSize="12.5" HorizontalAlignment="Right"
+                                               TextTrimming="CharacterEllipsis" MaxWidth="190"/>
+                                </Grid>
+                                <Grid>
+                                    <TextBlock Text="Заряд" FontSize="12" Foreground="{StaticResource Dim}"/>
+                                    <TextBlock x:Name="PhoneBattery" FontSize="12.5" HorizontalAlignment="Right"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+
+                <Grid x:Name="LookView" Width="320" Height="329" HorizontalAlignment="Center" VerticalAlignment="Top">
+                    <StackPanel x:Name="LookBody" Margin="8,6,8,0">
+                        <Button Style="{StaticResource BackButton}" Content="ОФОРМЛЕНИЕ" Click="SettingsBack_Click"/>
+                        <Border Style="{StaticResource Card}">
+                            <local:RowList>
+                                <Button x:Name="SizeRow" Style="{StaticResource RowButton}" Click="Size_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Size"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Размер"/>
+                                        <local:Digits x:Name="SizeText" Foreground="{StaticResource Dim}"
+                                                      HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+                                <Button x:Name="GapRow" Style="{StaticResource RowButton}" Click="Gap_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Gap"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Отступ от края"/>
+                                        <local:Digits x:Name="GapText" Foreground="{StaticResource Dim}"
+                                                      HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+                                <Button x:Name="PulseRow" Style="{StaticResource RowButton}" Click="Pulse_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Pulse"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Пульс ободка"/>
+                                        <TextBlock x:Name="PulseText" Foreground="{StaticResource Dim}"
+                                                   HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+                                <Button Style="{StaticResource RowButton}" Click="Dots_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Bars"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Эквалайзер"/>
+                                        <TextBlock x:Name="DotsText" Foreground="{StaticResource Dim}"
+                                                   HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+                                <Button Style="{StaticResource RowButton}" Click="SeekStyle_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Segments"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Полоса трека"/>
+                                        <TextBlock x:Name="SeekStyleText" Foreground="{StaticResource Dim}"
+                                                   HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+                                <Button Style="{StaticResource RowButton}" Click="Backdrop_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Stars"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Фон плеера"/>
+                                        <TextBlock x:Name="BackdropText" Foreground="{StaticResource Dim}"
+                                                   HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+                                <Button Style="{StaticResource RowButton}" Click="LyricChange_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Lines"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Смена строки"/>
+                                        <TextBlock x:Name="LyricChangeText" Foreground="{StaticResource Dim}"
+                                                   HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+                            </local:RowList>
+                        </Border>
+                        <Border Style="{StaticResource Card}" Margin="0">
+                            <StackPanel>
+                                <Grid Height="30" Margin="11,0">
+                                    <local:Icon Style="{StaticResource RowIcon}" Kind="Drop"/>
+                                    <TextBlock Style="{StaticResource RowLabel}" Text="Акцентный цвет" FontSize="13"/>
+                                    <TextBlock x:Name="AccentText" FontSize="13" Foreground="{StaticResource Dim}"
+                                               HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                </Grid>
+                                <UniformGrid x:Name="AccentStrip" Rows="1" Height="26" Margin="5,1,5,0">
+                                    <RadioButton Style="{StaticResource Swatch}" Tag="Из обложки" Click="Accent_Click">
+                                        <RadioButton.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                <GradientStop Color="#FF375F" Offset="0"/>
+                                                <GradientStop Color="#FFD60A" Offset="0.35"/>
+                                                <GradientStop Color="#30D158" Offset="0.65"/>
+                                                <GradientStop Color="#0A84FF" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </RadioButton.Background>
+                                    </RadioButton>
+                                    <RadioButton Style="{StaticResource Swatch}" Background="#FFFFFF" Tag="Белый" Click="Accent_Click"/>
+                                    <RadioButton Style="{StaticResource Swatch}" Background="#FF453A" Tag="Красный" Click="Accent_Click"/>
+                                    <RadioButton Style="{StaticResource Swatch}" Background="#FF9F0A" Tag="Оранжевый" Click="Accent_Click"/>
+                                    <RadioButton Style="{StaticResource Swatch}" Background="#FFD60A" Tag="Жёлтый" Click="Accent_Click"/>
+                                    <RadioButton Style="{StaticResource Swatch}" Background="#30D158" Tag="Зелёный" Click="Accent_Click"/>
+                                    <RadioButton Style="{StaticResource Swatch}" Background="#64D2FF" Tag="Голубой" Click="Accent_Click"/>
+                                    <RadioButton Style="{StaticResource Swatch}" Background="#0A84FF" Tag="Синий" Click="Accent_Click"/>
+                                    <RadioButton Style="{StaticResource Swatch}" Background="#BF5AF2" Tag="Фиолетовый" Click="Accent_Click"/>
+                                    <RadioButton Style="{StaticResource Swatch}" Background="#FF375F" Tag="Розовый" Click="Accent_Click"/>
+                                </UniformGrid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+
+                <Grid x:Name="PositionView" Width="320" Height="272" HorizontalAlignment="Center" VerticalAlignment="Top">
+                    <StackPanel x:Name="PositionBody" Margin="8,6,8,0">
+                        <Button Style="{StaticResource BackButton}" Content="ПОЛОЖЕНИЕ" Click="SettingsBack_Click"/>
+                        <Border Style="{StaticResource Card}">
+                            <local:RowList>
+                                <Button x:Name="EdgeRow" Style="{StaticResource RowButton}" Click="Edge_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Edge"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Край экрана"/>
+                                        <local:Digits x:Name="EdgeText" Foreground="{StaticResource Dim}"
+                                                      HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+                                <Button x:Name="MonitorRow" Style="{StaticResource RowButton}" Click="Monitor_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Windows"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Экран"/>
+                                        <local:Digits x:Name="MonitorText" Foreground="{StaticResource Dim}"
+                                                      HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+                                <Button x:Name="AnchorRow" Style="{StaticResource RowButton}" Click="Anchor_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Gap"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Привязка"/>
+                                        <local:Digits x:Name="AnchorText" Foreground="{StaticResource Dim}"
+                                                      HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+                                <Button x:Name="AlongRow" Style="{StaticResource RowButton}" Click="Along_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Expand"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Смещение вдоль"/>
+                                        <local:Digits x:Name="AlongText" Foreground="{StaticResource Dim}"
+                                                      HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+                            </local:RowList>
+                        </Border>
+                        <Border Style="{StaticResource Card}" Margin="0">
+                            <local:RowList>
+                                <Button Style="{StaticResource RowButton}" Click="WorkArea_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Size"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Не залезать на панель"/>
+                                        <local:Toggle x:Name="WorkSwitch" Style="{StaticResource RowSwitch}"/>
+                                    </Grid>
+                                </Button>
+                                <Button x:Name="DragRow" Style="{StaticResource RowButton}" Click="Drag_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Tray"/>
+                                        <TextBlock x:Name="DragText" Style="{StaticResource RowLabel}" Text="Переместить мышью"/>
+                                    </Grid>
+                                </Button>
+                                <Button Style="{StaticResource RowButton}" Click="PlaceReset_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Back"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Сбросить"/>
+                                    </Grid>
+                                </Button>
+                            </local:RowList>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+
+                <Grid x:Name="FontsView" Width="320" Height="252" HorizontalAlignment="Center" VerticalAlignment="Top">
+                    <StackPanel x:Name="FontsBody" Margin="8,6,8,0">
+                        <Button Style="{StaticResource BackButton}" Content="ШРИФТЫ" Click="SettingsBack_Click"/>
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <Grid Height="44">
+                                    <TextBlock x:Name="FontSample" Text="Aa 12:34 Остров" FontSize="21" FontWeight="SemiBold"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Grid>
+                                <local:RowList>
+                                    <Button x:Name="FontRow" Style="{StaticResource RowButton}" Click="Font_Click">
+                                        <Grid>
+                                            <local:Icon Style="{StaticResource RowIcon}" Kind="Font"/>
+                                            <TextBlock Style="{StaticResource RowLabel}" Text="Шрифт"/>
+                                            <TextBlock x:Name="FontNameText" Foreground="{StaticResource Dim}" FontSize="12"
+                                                       MaxWidth="150" TextTrimming="CharacterEllipsis" TextAlignment="Right"
+                                                       HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </Button>
+                                    <Button x:Name="FontScaleRow" Style="{StaticResource RowButton}" Click="FontScale_Click">
+                                        <Grid>
+                                            <local:Icon Style="{StaticResource RowIcon}" Kind="Size"/>
+                                            <TextBlock Style="{StaticResource RowLabel}" Text="Размер букв"/>
+                                            <local:Digits x:Name="FontScaleText" Foreground="{StaticResource Dim}"
+                                                          HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </Button>
+                                </local:RowList>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource Card}" Margin="0">
+                            <local:RowList>
+                                <Button Style="{StaticResource RowButton}" Click="FontAdd_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Plus"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Загрузить файл…"/>
+                                    </Grid>
+                                </Button>
+                                <Button Style="{StaticResource RowButton}" Click="FontFolder_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Tray"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Открыть папку шрифтов"/>
+                                    </Grid>
+                                </Button>
+                                <Button Style="{StaticResource RowButton}" Click="FontReset_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Back"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Вернуть SF Pro"/>
+                                    </Grid>
+                                </Button>
+                            </local:RowList>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+
+                <Grid x:Name="ShelfView" Width="380" Height="480" HorizontalAlignment="Center" VerticalAlignment="Top">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="88"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0" Height="22" Margin="22,12,16,0" VerticalAlignment="Top">
                         <TextBlock Style="{StaticResource Caption}" Text="ПОЛКА" VerticalAlignment="Center"/>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                             <Button Style="{StaticResource ChipButton}" Width="22" Height="22" Margin="0,0,6,0" Click="ShelfAdd_Click">
@@ -867,37 +1208,65 @@
                             </Button>
                         </StackPanel>
                     </Grid>
-                    <Rectangle x:Name="ShelfZone" Margin="14,40,14,12" RadiusX="16" RadiusY="16"
-                               Stroke="White" StrokeThickness="1.5" StrokeDashArray="3 2.5" Fill="#0AFFFFFF" Opacity="0"
-                               IsHitTestVisible="False"/>
-                    <Button x:Name="ShelfHint" Style="{StaticResource PlainButton}" Margin="14,40,14,12" Click="ShelfAdd_Click"
-                            MouseEnter="ShelfHint_MouseHover" MouseLeave="ShelfHint_MouseHover">
-                        <StackPanel>
-                            <local:Icon Kind="Tray" Width="22" Height="22" Fill="{StaticResource Dim}"/>
-                            <TextBlock x:Name="ShelfHintText" Text="Перетащите сюда файлы" FontSize="12" Foreground="{StaticResource Dim}"
-                                       Margin="0,6,0,0" HorizontalAlignment="Center"/>
-                            <TextBlock x:Name="ShelfHintMore" Text="или нажмите, чтобы выбрать" FontSize="11" Foreground="{StaticResource Faint}"
-                                       Margin="0,1,0,0" HorizontalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
-                    <Border x:Name="ShelfStrip" Margin="18,36,18,10" ClipToBounds="True">
-                        <Border.OpacityMask>
-                            <LinearGradientBrush MappingMode="Absolute" StartPoint="0,0" EndPoint="344,0">
-                                <GradientStop x:Name="ShelfEdgeLeft" Color="Black" Offset="0"/>
-                                <GradientStop Color="Black" Offset="0.05"/>
-                                <GradientStop Color="Black" Offset="0.95"/>
-                                <GradientStop x:Name="ShelfEdgeRight" Color="Black" Offset="1"/>
-                            </LinearGradientBrush>
-                        </Border.OpacityMask>
-                        <Canvas>
-                            <StackPanel x:Name="ShelfTiles" Orientation="Horizontal" Margin="0,8,0,0">
-                                <StackPanel.RenderTransform>
-                                    <TranslateTransform x:Name="ShelfMove"/>
-                                </StackPanel.RenderTransform>
+
+                    <Grid Grid.Row="1">
+                        <Rectangle x:Name="ShelfZone" Margin="14,6,14,6" RadiusX="16" RadiusY="16"
+                                   Stroke="White" StrokeThickness="1.5" StrokeDashArray="3 2.5" Fill="#0AFFFFFF" Opacity="0"
+                                   IsHitTestVisible="False"/>
+                        <Button x:Name="ShelfHint" Style="{StaticResource PlainButton}" Margin="14,6,14,6" Click="ShelfAdd_Click"
+                                MouseEnter="ShelfHint_MouseHover" MouseLeave="ShelfHint_MouseHover">
+                            <StackPanel VerticalAlignment="Center">
+                                <local:Icon Kind="Tray" Width="22" Height="22" Fill="{StaticResource Dim}"/>
+                                <TextBlock x:Name="ShelfHintText" Text="Перетащите сюда файлы" FontSize="12" Foreground="{StaticResource Dim}"
+                                           Margin="0,6,0,0" HorizontalAlignment="Center"/>
+                                <TextBlock x:Name="ShelfHintMore" Text="или нажмите, чтобы выбрать" FontSize="11" Foreground="{StaticResource Faint}"
+                                           Margin="0,1,0,0" HorizontalAlignment="Center"/>
                             </StackPanel>
-                        </Canvas>
-                    </Border>
+                        </Button>
+                        <Border x:Name="ShelfStrip" Margin="18,0,18,0" ClipToBounds="True">
+                            <Border.OpacityMask>
+                                <LinearGradientBrush MappingMode="Absolute" StartPoint="0,0" EndPoint="344,0">
+                                    <GradientStop x:Name="ShelfEdgeLeft" Color="Black" Offset="0"/>
+                                    <GradientStop Color="Black" Offset="0.05"/>
+                                    <GradientStop Color="Black" Offset="0.95"/>
+                                    <GradientStop x:Name="ShelfEdgeRight" Color="Black" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.OpacityMask>
+                            <Canvas>
+                                <StackPanel x:Name="ShelfTiles" Orientation="Horizontal" Margin="0,8,0,0">
+                                    <StackPanel.RenderTransform>
+                                        <TranslateTransform x:Name="ShelfMove"/>
+                                    </StackPanel.RenderTransform>
+                                </StackPanel>
+                            </Canvas>
+                        </Border>
+                    </Grid>
+
+                    <Grid Grid.Row="2" Height="22" Margin="22,10,16,0" VerticalAlignment="Top">
+                        <TextBlock Style="{StaticResource Caption}" Text="БУФЕР ОБМЕНА" VerticalAlignment="Center"/>
+                        <Button x:Name="ClipClear" Style="{StaticResource ChipButton}" Height="22" Margin="0" FontSize="11"
+                                HorizontalAlignment="Right" VerticalAlignment="Center" Visibility="Collapsed" Click="ClipClear_Click">
+                            <TextBlock Text="Очистить" Margin="10,0" Foreground="{StaticResource Dim}"/>
+                        </Button>
+                    </Grid>
+
+                    <local:RowList x:Name="ClipRows" Grid.Row="3" Margin="10,6,10,0"/>
+                    <TextBlock x:Name="ClipHint" Grid.Row="3" Text="Скопируй что-нибудь —&#10;оно появится здесь" FontSize="12.5"
+                               Foreground="{StaticResource Faint}" TextAlignment="Center" TextWrapping="Wrap"
+                               Margin="0,40,0,0" VerticalAlignment="Top" IsHitTestVisible="False"/>
                 </Grid>
+
+                <Grid x:Name="ClipToastView" Width="250" Height="34" HorizontalAlignment="Center" VerticalAlignment="Top">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="42"/>
+                        <ColumnDefinition Width="208"/>
+                    </Grid.ColumnDefinitions>
+                    <local:Icon Kind="Clip" Width="17" Height="17" Fill="White"/>
+                    <TextBlock x:Name="ClipToastText" Grid.Column="1" FontSize="12.5" VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"/>
+                </Grid>
+
+                <Canvas x:Name="PeekLayer"/>
             </Grid>
 
             <Canvas x:Name="Shared" Visibility="Collapsed" Opacity="0">
@@ -947,5 +1316,6 @@
                 </StackPanel>
             </Grid>
         </Border>
+    </Grid>
     </Grid>
 </Window>

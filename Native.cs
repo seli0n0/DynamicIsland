@@ -65,6 +65,18 @@ static class Native
     [DllImport("user32.dll")]
     static extern bool RegisterShellHookWindow(IntPtr hwnd);
 
+    [DllImport("user32.dll")]
+    static extern bool AddClipboardFormatListener(IntPtr hwnd);
+
+    [DllImport("user32.dll")]
+    static extern bool RemoveClipboardFormatListener(IntPtr hwnd);
+
+    public const int ClipboardUpdateMessage = 0x031D;
+
+    public static bool ListenClipboard(IntPtr hwnd) => AddClipboardFormatListener(hwnd);
+
+    public static void UnlistenClipboard(IntPtr hwnd) => RemoveClipboardFormatListener(hwnd);
+
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     static extern uint RegisterWindowMessage(string name);
 

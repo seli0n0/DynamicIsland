@@ -164,6 +164,14 @@ public partial class MainWindow
 
     void TimerStart_Click(object sender, RoutedEventArgs e) => StartTimer(TimeSpan.FromMinutes(_setupMinutes));
 
+    void TimerAdd5_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_countdown.IsActive) return;
+        _countdown.Add(TimeSpan.FromMinutes(5));
+        BigTimerLabel.Text = "Таймер · " + DescribeDuration(_countdown.Total);
+        UpdateTimer();
+    }
+
     void TimerToggle_Click(object sender, RoutedEventArgs e)
     {
         _countdown.Toggle();

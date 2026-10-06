@@ -16,8 +16,11 @@ public partial class MainWindow
     const double ToastSeconds = 3.2;
     const double PeakFallback = 0.4;
     const double IconBlur = 6;
+    const double PulseFrom = 0.5;
+    const double PulseAttack = 0.02, PulseRelease = 0.22;
     const string UnknownArtist = "Неизвестный исполнитель";
     static readonly Duration TintTime = Ms(450);
+    static readonly double[] PulseShare = [0, 0.4, 0.7, 1];
 
     readonly SpectrumService _spectrum = new();
     readonly float[] _bands = new float[SpectrumService.Bands];
@@ -36,6 +39,7 @@ public partial class MainWindow
     int _skipDirection = 1;
     double _skipAt = -SkipMemorySeconds;
     double _sourceSwitchedAt = -SkipMemorySeconds;
+    double _pulse;
     string _source = "", _sourceName = "";
 
     Color AccentColor => Settings.Accent ?? _media.Accent;
@@ -171,7 +175,13 @@ public partial class MainWindow
 
         bool moving = Eq.Tick(bands, level, playing, now, dt);
         moving |= Settings.Backdrop == Backdrop.Glow ? Glow.Tick(Eq, now, dt) : AdvanceBackdrop(bands, playing, now, dt);
-        return IsEqVisible && (playing || moving);
+
+        double beat = IsEqVisible && playing ? Math.Clamp((Eq.Level(0) - PulseFrom) / (1 - PulseFrom), 0, 1) * PulseShare[Settings.Pulse] : 0;
+        _pulse += (beat - _pulse) * (1 - Math.Exp(-dt / (beat > _pulse ? PulseAttack : PulseRelease)));
+        bool lit = _pulse > 0.004;
+        Body.Beat(lit ? _pulse : _pulse = 0);
+
+        return lit || (IsEqVisible && (playing || moving));
     }
 
     bool AdvanceBackdrop(float[]? bands, bool playing, double now, double dt)

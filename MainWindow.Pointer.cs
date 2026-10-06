@@ -42,6 +42,16 @@ public partial class MainWindow
 
     void Root_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        if (_moving || e.LeftButton == MouseButtonState.Pressed && Keyboard.Modifiers == ModifierKeys.Alt)
+        {
+            _moving = true;
+            SelectPanel(Panel.None);
+            UpdateView();
+            Root.CaptureMouse();
+            e.Handled = true;
+            UpdateTargets();
+            return;
+        }
         _pressed = true;
         if (_panel == Panel.None && !_ringing && Island.CaptureMouse())
         {
@@ -55,6 +65,11 @@ public partial class MainWindow
 
     void Root_MouseMove(object sender, MouseEventArgs e)
     {
+        if (_moving)
+        {
+            if (e.LeftButton == MouseButtonState.Pressed) MoveTo(PointToScreen(e.GetPosition(this)));
+            return;
+        }
         if (_grab == Grab.None) return;
         Point at = e.GetPosition(this);
         double now = _clock.Elapsed.TotalSeconds, dt = now - _pointerAt;
@@ -79,6 +94,15 @@ public partial class MainWindow
 
     void Root_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
+        if (_moving)
+        {
+            _moving = false;
+            Root.ReleaseMouseCapture();
+            Root.Cursor = null;
+            UpdatePosition();
+            e.Handled = true;
+            return;
+        }
         if (!_pressed) return;
         _pressed = false;
 
@@ -190,8 +214,15 @@ public partial class MainWindow
         e.Handled = true;
         if (Native.IsCtrlDown) SwitchSource(-step);
         else if (_view == View.TimerSet) SetMinutes(_setupMinutes + step);
+        else if (_view == View.Position && EdgeRow.IsMouseOver) SetEdge((ScreenEdge)StepOption([0, 1, 2, 3], (int)Settings.Edge, step, false));
+        else if (_view == View.Position && MonitorRow.IsMouseOver) SetScreen(step);
+        else if (_view == View.Position && AnchorRow.IsMouseOver) SetAnchor((ScreenAnchor)StepOption([0, 1, 2], (int)Settings.Anchor, step, false));
+        else if (_view == View.Position && AlongRow.IsMouseOver) AddAlong(AlongStep * step);
         else if (_view == View.Look && SizeRow.IsMouseOver) SetScale(StepOption(ScaleOptions, Settings.Scale, step, false));
         else if (_view == View.Look && GapRow.IsMouseOver) SetGap(StepOption(GapOptions, Settings.Gap, step, false));
+        else if (_view == View.Look && PulseRow.IsMouseOver) SetPulse(Math.Clamp(Settings.Pulse + step, 0, Pulses.Length - 1));
+        else if (_view == View.Fonts && FontRow.IsMouseOver) SetFace(NextFace(FontPack.Families(), Settings.Font, step));
+        else if (_view == View.Fonts && FontScaleRow.IsMouseOver) SetFontScale(Settings.FontScale + 5 * step);
         else if (_view == View.Shelf && ShelfOverflow > 0) ScrollShelf(-step);
         else if (_view == View.MediaBig && Settings.AppVolume && _audio.AdjustAppVolume(_media.Source, step * WheelVolumeStep, out float level))
             ShowPlayerVolume(level, false, true);

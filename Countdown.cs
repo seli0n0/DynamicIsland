@@ -37,6 +37,13 @@ sealed class Countdown
         IsRunning = !IsRunning;
     }
 
+    public void Add(TimeSpan amount)
+    {
+        if (!IsActive) return;
+        Total += amount;
+        _remaining += amount;
+    }
+
     public void Stop()
     {
         IsActive = IsRunning = false;
