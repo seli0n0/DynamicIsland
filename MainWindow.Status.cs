@@ -129,12 +129,33 @@ public partial class MainWindow
 
     void ShowCharging(int percent)
     {
-        ChargeText.Text = percent + "%";
+        ChargeLabel.Text = "Зарядка";
+        ChargeCell.Visibility = Visibility.Visible;
+        ChargePhoneCell.Visibility = Visibility.Collapsed;
         ChargeFill.BeginAnimation(WidthProperty, new DoubleAnimation(0, ChargeFillWidth * percent / 100.0, Ms(700))
         {
             BeginTime = TimeSpan.FromMilliseconds(250),
             EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
         });
+        ShowCharge(percent);
+    }
+
+    /// <summary>A phone going onto charge, told with the same bolt as this machine's own. Its cell is the one the
+    /// phone page draws, emptied first so the fill has somewhere to travel from and the bolt has something to cut
+    /// through.</summary>
+    void ShowPhoneCharge(int percent)
+    {
+        ChargeLabel.Text = "Телефон";
+        ChargeCell.Visibility = Visibility.Collapsed;
+        ChargePhoneCell.Visibility = Visibility.Visible;
+        ChargePhoneCell.Set(-1, false, false);
+        ChargePhoneCell.Set(percent, true, true);
+        ShowCharge(percent);
+    }
+
+    void ShowCharge(int percent)
+    {
+        ChargeText.Text = percent + "%";
         ShowTransient(View.Charge, ChargeSeconds);
 
         var ease = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.7 };

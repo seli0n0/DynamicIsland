@@ -13,20 +13,30 @@ public sealed class Goo : FrameworkElement
     const double Tolerance = 0.02;
     const byte TintedAlpha = 0x8C;
     const double HazeOpacity = 0.14;
-    const byte GlassAlpha = 0x99;
+    const byte FrostSolid = byte.MaxValue, FrostThin = 0x30, FrostMilk = 0x22;
+    const double SweatBody = 0.25, SweatMilk = 0.9;
 
     static readonly Color PlainRim = Color.FromArgb(0x20, 0xFF, 0xFF, 0xFF);
+    static readonly Color PlainMilk = Color.FromArgb(0, 0xFF, 0xFF, 0xFF);
     static readonly double[] HazeReach = [2, 3, 4];
     static readonly (double At, double Level)[] FlashFrames = [(0, 0), (0.04, 1), (0.13, 0.3), (0.19, 0.9), (0.5, 0), (1, 0)];
 
-    readonly SolidColorBrush _rim = new(PlainRim), _fill = new(Colors.Black);
+    readonly SolidColorBrush _rim = new(PlainRim), _fill = new(Colors.Black), _milk = new(PlainMilk);
     readonly Light _beat = new(), _flash = new();
     readonly Pen _edge;
+    readonly FrameLoop _frostLoop;
 
     Rect _pill = Rect.Empty, _bubble = Rect.Empty;
     double _radius;
+    int _strength;
+    double _spend, _body = byte.MaxValue, _haze, _sweat;
+    Action? _settled;
 
-    public Goo() => _edge = new Pen(_rim, 2 * RimWidth) { LineJoin = PenLineJoin.Round };
+    public Goo()
+    {
+        _edge = new Pen(_rim, 2 * RimWidth) { LineJoin = PenLineJoin.Round };
+        _frostLoop = new FrameLoop(AdvanceFrost, 1.0 / 120);
+    }
 
     public void Tint(Color? color, Duration time)
     {
@@ -42,18 +52,79 @@ public sealed class Goo : FrameworkElement
         level = Math.Clamp(level, 0, 1);
         _beat.Edge.Opacity = level;
         _beat.Mist.Opacity = level * HazeOpacity;
+        if (level == _sweat) return;
+        _sweat = level;
+        _frostLoop.Start();
     }
 
     public (Rect Box, double Radius) PillInside => Inside(_pill, _radius);
 
     public (Rect Box, double Radius) BubbleInside => Inside(_bubble, _bubble.Height / 2);
 
-    public void Thin(bool glass, Duration time, Action thinned)
+    /// <summary>
+    /// Wear the body to a given frost strength over a given while. The ground and its haze chase the strength frame by
+    /// frame rather than by animation, because the bass and the pointer wipe the same two away as they go.
+    /// </summary>
+    public void Thin(int strength, Duration time, Action thinned)
     {
-        var fade = new ColorAnimation(Color.FromArgb(glass ? GlassAlpha : byte.MaxValue, 0, 0, 0), time);
-        fade.Completed += (_, _) => thinned();
-        _fill.BeginAnimation(SolidColorBrush.ColorProperty, fade);
+        _strength = strength;
+        _spend = time.HasTimeSpan && time.TimeSpan > TimeSpan.Zero ? byte.MaxValue / time.TimeSpan.TotalSeconds : 0;
+        _settled = thinned;
+        if (_spend > 0) _frostLoop.Start();
+        else
+        {
+            _body = FrostAlpha(strength);
+            _haze = MilkAlpha(strength);
+            Settle();
+        }
     }
+
+    bool AdvanceFrost(double dt)
+    {
+        bool moving = Walk(ref _body, FrostAlpha(_strength), _spend, dt) | Walk(ref _haze, MilkAlpha(_strength), _spend, dt);
+        Paint(_sweat);
+        if (moving) return true;
+        Settle();
+        return false;
+    }
+
+    void Settle()
+    {
+        Paint(_sweat);
+        Action? done = _settled;
+        _settled = null;
+        done?.Invoke();
+    }
+
+    void Paint(double sweat)
+    {
+        double share = Math.Clamp(sweat, 0, 1);
+        _fill.Color = Color.FromArgb((byte)Math.Round(_body * (1 - share * SweatBody)), 0, 0, 0);
+        _milk.Color = Color.FromArgb((byte)Math.Round(_haze * (1 - share * SweatMilk)), 0xFF, 0xFF, 0xFF);
+    }
+
+    static bool Walk(ref double value, double to, double rate, double dt)
+    {
+        if (value == to) return false;
+        double step = rate * dt;
+        value = Math.Abs(to - value) <= step ? to : value + Math.Sign(to - value) * step;
+        return true;
+    }
+
+    /// <summary>
+    /// How much haze the frost leaves in the ground it thins: a pane that lets the blurred world through also whitens a
+    /// little where it meets the light, and that whiteness is most of what reads as frost rather than as a window.
+    /// </summary>
+    public static byte MilkAlpha(int strength) =>
+        (byte)Math.Round(FrostMilk * Math.Clamp(strength, 0, 100) / 100.0);
+
+    /// <summary>
+    /// How solid the body's ground is at a given frost strength: the slider's ends are the island standing nearly
+    /// opaque over what lies behind it and the same ground worn so thin that the frosted blur of that shows through
+    /// it whole. A strength of none is the switch off — a body no thinner than the island wears without glass.
+    /// </summary>
+    public static byte FrostAlpha(int strength) =>
+        (byte)Math.Round(FrostSolid - (FrostSolid - FrostThin) * Math.Clamp(strength, 0, 100) / 100.0);
 
     public void StartFlashing(Color color, TimeSpan round)
     {
@@ -124,7 +195,9 @@ public sealed class Goo : FrameworkElement
         dc.DrawGeometry(null, _beat.Line, body);
         dc.DrawGeometry(null, _flash.Line, body);
         dc.Pop();
+
         dc.DrawGeometry(_fill, null, body);
+        dc.DrawGeometry(_milk, null, body);
         foreach (Pen mist in _beat.Mists) dc.DrawGeometry(null, mist, body);
         foreach (Pen mist in _flash.Mists) dc.DrawGeometry(null, mist, body);
     }

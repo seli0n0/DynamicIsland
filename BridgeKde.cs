@@ -40,6 +40,7 @@ sealed class BridgeKde
     // to one crossing per phone in that span and lets the shout bring the next one
     static readonly TimeSpan Reknock = TimeSpan.FromSeconds(2);
     const int LargestLine = 64 * 1024; // one line of JSON only; a file arrives over a TLS channel of its own
+    const long LargestPicture = 512 * 1024; // an app's icon as its own phone draws it; longer than this is not a picture
     const int ProtocolVersion = 8;     // a phone that is offered less than eight will not answer the door at all
 
     readonly Bridge _bridge;
@@ -47,9 +48,26 @@ sealed class BridgeKde
     readonly X509Certificate2 _certificate;
     readonly byte[] _ourKey;
     readonly Dictionary<string, Phone> _live = [];
+    /// <summary>Which phone showed each notice the island is holding, and under what key that phone knows it by.</summary>
+    readonly Dictionary<string, (Phone Holder, string Id, string Reply)> _held = [];
     readonly Dictionary<string, DateTime> _knocked = [];
     readonly object _gate = new();
-    Phone? _pending;
+    /// <summary>
+    /// The pictures phones have sent with their notices, kept by the count the phone set over the bytes. A phone sends
+    /// an app's picture once and afterwards only its count, meaning the other end to have kept it — and a run that has
+    /// ended forgets what it kept, which is why the same count finds the same picture again on disk.
+    /// </summary>
+    readonly Dictionary<string, byte[]> _pictures = [];
+    /// <summary>
+    /// This machine's music, as the island last said it. A phone looks once when its media page opens and listens
+    /// after, so a late asking is answered from here rather than with nothing.
+    /// </summary>
+    Bridge.Playing _playing = new("", "", false, 0, -1, false, 0);
+    DateTime _mirrored = DateTime.MinValue;
+    /// <summary>The phone whose ask for a place at the door the owner has not answered yet. Kept by the phone's own
+    /// name rather than by the channel it asked on: a real vivo crosses a fresh channel every half-minute or so while
+    /// a person reads the pill and decides, and a yes written down the channel that has gone is a yes nobody hears.</summary>
+    (string Id, string Name, string Fingerprint)? _pending;
     CancellationToken _turns;
 
     public BridgeKde(Bridge bridge)
@@ -311,12 +329,28 @@ sealed class BridgeKde
             phone.Paired = Trusted(phone.Fingerprint);
             Said($"{phone.Name} at {standing} stands on a channel {(direct == null ? "we made" : "the phone made")}, "
                 + $"{(phone.Paired ? "trusted from before" : "not yet trusted")}, protocol {peer.Protocol}");
+            // one honest line about what this phone claims to speak, taken from its identity: the app counts the types of
+            // every plugin it knows rather than the ones it runs for us, so what is *here* rules a phone in or out —
+            // a phone that names no `kdeconnect.notification` at all has no notice dialect, and no island will ever be
+            // shown one — while a phone that names it only says the dialect exists, not that its owner has let it read
+            // the notice bar
+            Said($"{phone.Name} sends {peer.Sends.Length} kind{(peer.Sends.Length == 1 ? "" : "s")} of packet"
+                + (peer.Sends.Contains("kdeconnect.notification") ? ", notices among them"
+                    : $", and none of them notices: {string.Join(", ", peer.Sends)}"));
             lock (_gate)
             {
+                // a phone that crosses itself anew keeps the pairing this island has already answered: the owner's yes
+                // is on its way out, and the phone's own yes back may well arrive on this second channel rather than
+                // the one the ask came over — where answering it again would read to the app as a stranger's request
+                if (_live.TryGetValue(phone.Id, out Phone? before) && before.Confirming > phone.Confirming)
+                    phone.Confirming = before.Confirming;
                 _live[phone.Id] = phone;
                 _knocked.Remove(phone.Id);
             }
             _bridge.Visit(phone.Name);
+            // what the phone was holding before this channel existed is asked for the moment it settles, as the family
+            // asks it: a notice that arrived while the island was closed is read here rather than lost on the phone
+            if (phone.Paired && Settings.PhoneNotices) await Holds(phone);
             // a phone we already stand paired with needs no asking again: it restored its own trust when it woke, and
             // a pair request sent to a device that considers itself paired makes it unpair itself and start over
             await Talk(phone, token);
@@ -340,7 +374,7 @@ sealed class BridgeKde
             string leaving = phone?.Id ?? come?.Id ?? "";
             if (leaving.Length > 0)
             {
-                bool waiting;
+                bool waiting, alone;
                 lock (_gate)
                 {
                     // only the crossing that still owns this place gives it up: the one that reached a channel owns
@@ -348,11 +382,20 @@ sealed class BridgeKde
                     // since been crossed to again holds a newer door, which the older crossing must not close
                     if (!_live.TryGetValue(leaving, out Phone? still) || ReferenceEquals(still, phone)
                         || ReferenceEquals(still, place)) _live.Remove(leaving);
-                    waiting = ReferenceEquals(_pending, phone);
+                    // a notice answered through a channel that has ended is a word said to no phone, so it is given up
+                    // here rather than kept as a key the page can press for nothing
+                    alone = !_live.ContainsKey(leaving);
+                    if (alone) foreach (string key in _held.Where(one => one.Value.Holder.Id == leaving).Select(one => one.Key))
+                            _held.Remove(key);
+                    // an ask the owner has not answered is dropped only when the phone itself has gone: a channel that
+                    // has ended while another stands under the same name is a phone that has crossed itself again,
+                    // and its request is still open on its own screen waiting for the very answer being taken away
+                    waiting = alone && _pending?.Id == leaving;
                     if (waiting) _pending = null;
                 }
                 // a phone that left without an answer takes its request with it; the page stops asking
                 if (waiting) _bridge.Answer(phone!.Name, false);
+                if (alone) _bridge.Gone(leaving, phone?.Name ?? come?.Name ?? "");
             }
         }
     }
@@ -397,7 +440,13 @@ sealed class BridgeKde
         }
     }
 
-    /// <summary>Says the channel is still there, and ends the talk below when it plainly is not.</summary>
+    /// <summary>
+    /// Says the channel is still there, and ends the talk below when it plainly is not. Only to a phone this island
+    /// stands paired with: the app on the other side reads any packet that is not about pairing while its pairing is
+    /// still open — a request of its own or ours, waiting for a person to answer — as proof that this side has taken
+    /// itself away, and says so on its screen («отменено другим участником») before the owner has had the breath to
+    /// press anything. A hello sent into that window is the one word a phone cannot ignore quietly.
+    /// </summary>
     async Task Keepalive(Phone phone, CancellationTokenSource breath)
     {
         CancellationToken token = breath.Token;
@@ -406,7 +455,7 @@ sealed class BridgeKde
             while (true)
             {
                 await Task.Delay(Alive, token);
-                await Send(phone, Frame("kdeconnect.keepalive", new JsonObject()), token);
+                if (phone.Paired) await Send(phone, Frame("kdeconnect.keepalive", new JsonObject()), token);
             }
         }
         catch (OperationCanceledException) { }
@@ -451,39 +500,58 @@ sealed class BridgeKde
                 // the phone has asked; whether it stands inside is the owner's call, made on the page, and this
                 // channel stays silent until that call is given. The eight signs shown on both sides are the same
                 // eight the phone's own pairing screen shows, so the owner can match them across the two screens
-                lock (_gate) _pending = phone;
-                phone.Pending = true;
+                lock (_gate) _pending = (phone.Id, phone.Name, phone.Fingerprint);
                 Said($"{phone.Name} asks to pair");
                 _bridge.Ask(new Bridge.Asking(phone.Name, phone.Fingerprint, Fingerprint(_certificate),
                     Code(phone, Whole(packet.Body, "timestamp") ?? 0)));
                 break;
 
+            case "kdeconnect.pair" when Ask(packet) && phone.Confirming > DateTime.UtcNow:
+                // the phone's own yes, come back to the one the island just said. Nothing is answered here, and that
+                // is the whole of the difference: an ask and an answer are made of the same words, so a device that
+                // stands paired and is asked again takes it for a stranger's request and unpairs the pairing it has
+                // just agreed to (PairingHandler: state Paired + pair=true → unpaired, then a fresh request of its own)
+                phone.Confirming = DateTime.MinValue;
+                Said($"{phone.Name} agreed to the pairing");
+                // and only now is it asked what it holds: a notice request sent a half-second earlier is a plugin
+                // packet reaching a phone that does not yet stand paired, and such a packet is what makes the app
+                // unpair a device it is in the middle of agreeing to (Device.onPacketReceived: !isPaired → unpair)
+                if (Settings.PhoneNotices) AskNotices();
+                break;
+
             case "kdeconnect.pair" when Ask(packet):
                 // a phone we already stand paired with asks again after every joining; the yes is said back rather
-                // than leave it waiting for an answer the owner gave in a run that has ended
+                // than leave it waiting for an answer the owner gave in a run that has ended — and it is said back
+                // once, with the same waiting for its own yes that the owner's answer leaves behind
                 Said($"{phone.Name} says it is already paired, and is answered so");
+                phone.Confirming = DateTime.UtcNow.AddSeconds(30);
                 await Send(phone, Frame("kdeconnect.pair", PairBody(true), packet.Id), token);
                 break;
 
-            case "kdeconnect.pair": // the phone dropped us, or answered a pair request of its own
-                Said($"{phone.Name} unpaired itself");
+            case "kdeconnect.pair": // the phone has taken itself away from this island
+                // said with the packet itself: a phone that unpair itself is a phone whose trust line is about to be
+                // deleted, and an owner asked to pair again deserves to know what was heard the first time
+                Said($"{phone.Name} unpaired itself: {Brief(packet.Raw)}");
                 phone.Paired = false;
-                phone.Pending = false;
-                lock (_gate) if (ReferenceEquals(_pending, phone)) _pending = null;
+                phone.Confirming = DateTime.MinValue;
+                lock (_gate) if (_pending?.Id == phone.Id) _pending = null;
                 Untrust(phone.Fingerprint);
-                await Send(phone, Frame("kdeconnect.pair", PairBody(false), packet.Id), token);
+                // and no word is said back. A pair that says no is made of the same shape as a refusal, so an echo of
+                // the phone's own leaving reaches it as the island refusing — which is the message on the phone's own
+                // screen: «отменено другим участником», the app's word for a no heard while a pairing stands open
                 break;
 
             case "kdeconnect.device.battery" or "kdeconnect.battery":
                 // the app says the phone's charge as kdeconnect.battery, the desktop as kdeconnect.device.battery, and
                 // an island that listens for only one spelling hears neither from the phones that use the other
                 int charge = Number(body, "currentCharge") is int now ? now : Number(body, "charge") ?? 0;
-                Said($"{phone.Name} is at {charge} percent");
-                _bridge.Report(phone.Name, charge);
+                bool onCharge = Flag(body, "isCharging");
+                Said($"{phone.Name} is at {charge} percent{(onCharge ? ", on charge" : "")}");
+                _bridge.Report(phone.Name, charge, onCharge);
                 break;
 
             case "kdeconnect.notification":
-                _bridge.Tell(Text(body, "appName"), Text(body, "title"), Text(body, "text"));
+                Notice(phone, packet, await Art(phone, packet, token));
                 break;
 
             case "kdeconnect.clipboard" or "kdeconnect.clipboard.connectivity" or "kdeconnect.clipboard.connect":
@@ -494,6 +562,17 @@ sealed class BridgeKde
 
             case "kdeconnect.share.request":
                 await Share(phone, packet, token);
+                break;
+
+            case "kdeconnect.mpris.request":
+                await Music(phone, packet, token);
+                break;
+
+            case "kdeconnect.mpris":
+                // the phone mirrors its own player at this machine the way the island mirrors this one at it: heard,
+                // and left where it lies. An island showing two players would have to say which one its own buttons
+                // answer, and a phone's music is not this machine's to drive — while the saying of it would fill the
+                // phone page every time the phone changes a song.
                 break;
 
             case "kdeconnect.keepalive":
@@ -527,14 +606,18 @@ sealed class BridgeKde
         long promised = Whole(packet.Body, "payloadSize") ?? Whole(packet.Root, "payloadSize") ?? 0;
         if (promised > Bridge.LargestUpload || phone.Address.Length == 0) return;
 
-        string name = Text(packet.Body, "fileName");
+        // The file's own name is `filename` — one word, a lower-case n — both in the app (`FilesHelper.uriToNetworkPacket`
+        // writes `packet["filename"]`, and `SharePlugin` hears a packet only `if (np.has("filename"))`) and on the desktop.
+        // An island that looks for a capital there finds no name at all and lays the file down under its own guess, which
+        // is how every photo and PDF a phone ever sent came back to its owner as `Телефон.bin`, unopenable.
+        string name = Text(packet.Body, "filename");
         string mime = Text(packet.Body, "mimeType");
         int port = 0;
         if (packet.Root.TryGetProperty("payloadTransferInfo", out JsonElement where)
             && where.ValueKind == JsonValueKind.Object)
         {
             port = Number(where, "port") ?? 0;
-            if (name.Length == 0) name = Text(where, "fileName");
+            if (name.Length == 0) name = Text(where, "filename");
         }
         if (port <= 0) return; // a request to fetch a page is not a file being sent, and the island pulls nothing
 
@@ -589,7 +672,7 @@ sealed class BridgeKde
             {
                 await Write(wire, Frame("share.sendFile", new JsonObject
                 {
-                    ["fileName"] = name,
+                    ["filename"] = name,
                     ["mimeType"] = mime,
                     ["isShareFile"] = true,
                 }, packet.Id), breath.Token);
@@ -615,6 +698,328 @@ sealed class BridgeKde
 
         Said($"{(name.Length > 0 ? name : "a file")} arrived in {pile.Length} bytes against a promise of {promised}");
         _bridge.Take(name, mime, pile.ToArray());
+    }
+
+    /// <summary>
+    /// A notice as the phone holds it, in the three shapes one packet type carries: one that names a moment taken
+    /// away, one that was there before this channel opened and says so, and the rest arrived just now or changed in
+    /// place. A notice may ride with the picture of the app that made it, and the phone sends those bytes only the
+    /// first time it has them for that notice: after that the packet names a count over the bytes it offered once,
+    /// meaning the other end to have kept them. So the count is kept beside the bytes, in this run and on disk, and a
+    /// notice whose picture was never offered — or was offered at a door the island could not reach — is shown without
+    /// one, which is a notice still worth showing.
+    /// </summary>
+    void Notice(Phone phone, Packet packet, byte[]? given)
+    {
+        JsonElement body = packet.Body;
+        string where = Text(body, "id");
+        if (where.Length == 0) return; // no key to hold it by, and none to answer it with
+        string key = phone.Id + "/" + where;
+
+        if (Flag(body, "isCancel")) // the owner took it off the phone: it is gone, and a gone notice wants no toast
+        {
+            lock (_gate) _held.Remove(key);
+            Said($"{phone.Name} took a notice away: {where}");
+            _bridge.Took(key);
+            return;
+        }
+
+        // an app that hides its contents still leaves its ticker, and one that hides both leaves its name
+        string said = Text(body, "text");
+        if (said.Length == 0) said = Text(body, "ticker");
+
+        byte[]? art = Picture(Text(body, "payloadHash"), given);
+        var notice = new Bridge.Notice(key, phone.Name, Text(body, "appName"), Text(body, "title"), said,
+            Titles(body), Text(body, "requestReplyId"), Flag(body, "isClearable"), Flag(body, "silent"), When(body), art);
+        Said($"{phone.Name} holds a notice of {(notice.App.Length > 0 ? notice.App : "an app that did not name itself")},"
+            + $" {(notice.Silent ? "there before this channel opened" : "just arrived")}"
+            + $"{(notice.Actions.Length > 0 ? $", {notice.Actions.Length} buttons on it" : "")}"
+            + $"{(notice.ReplyId.Length > 0 ? ", answerable" : "")}"
+            + $"{(art != null ? $", its picture in {art.Length} bytes" : "")}");
+        lock (_gate) _held[key] = (phone, where, notice.ReplyId);
+        _bridge.Bring(notice);
+    }
+
+    /// <summary>
+    /// The picture a notice came with. The count the phone named over its bytes is the key they are kept under: bytes
+    /// that arrived are remembered and laid on disk, and a notice that brings only a count is shown with whatever that
+    /// count has been since — from this run, or from the last one. A count the island has never had bytes for is a
+    /// notice without a picture, since nothing here can ask the phone for them.
+    /// </summary>
+    byte[]? Picture(string count, byte[]? given)
+    {
+        // the count comes off the wire and becomes a file name, so only the thirty-two hex signs a hash is made of
+        // are taken as one; anything else is a notice whose picture is kept for this run alone, if it came at all
+        bool shaped = count.Length == 32 && count.All(Uri.IsHexDigit);
+        if (!shaped) return given;
+
+        lock (_gate) if (_pictures.TryGetValue(count, out byte[]? kept)) return given ?? kept;
+        if (given != null)
+        {
+            lock (_gate) _pictures[count] = given;
+            Try(() => File.WriteAllBytes(IconsOf(count), given)); // a run that ends must not forget a whole shelf
+            return given;
+        }
+
+        string here = IconsOf(count);
+        if (!File.Exists(here)) return null;
+        try
+        {
+            byte[] off = File.ReadAllBytes(here);
+            lock (_gate) _pictures[count] = off;
+            return off;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+    }
+
+    static string IconsOf(string count)
+    {
+        string dir = Path.Combine(Bridge.Folder, "icons");
+        Directory.CreateDirectory(dir); // a folder of pictures is a folder the phone never asked to have
+        return Path.Combine(dir, count + ".png");
+    }
+
+    /// <summary>A disk that is busy or full costs an owner a picture, not a channel.</summary>
+    static void Try(Action way)
+    {
+        try { way(); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { App.Log(ex); }
+    }
+
+    /// <summary>
+    /// The shelf of notices the phone is holding, asked for the way the family asks for it: the moment a channel
+    /// settles. A phone answers by sending everything it has and marking each one silent, which is why an island that
+    /// asks after a reconnection is not an island that toasts its owner with yesterday's messages.
+    /// </summary>
+    public void AskNotices()
+    {
+        foreach (Phone phone in Standing()) _ = Holds(phone);
+    }
+
+    /// <summary>Ask one phone for the notices it holds, on its own wire and after whatever else was said on it.</summary>
+    async Task Holds(Phone phone) =>
+        await Send(phone, Frame("kdeconnect.notification.request", new JsonObject { ["request"] = true }), _turns);
+
+    /// <summary>The phones this island stands talking with, trusted and channelled.</summary>
+    List<Phone> Standing()
+    {
+        lock (_gate) return _live.Values.Where(one => one.Paired && one.Secure != null).ToList();
+    }
+
+    /// <summary>
+    /// A word back about one notice, carried to the phone that showed it and spoken in that phone's own keys, which
+    /// are not the ones the page holds. An answer goes back under the notice's reply key rather than its id: the
+    /// phone files the box it answers into under that one, and a key made of the notice's own name finds nothing.
+    /// A key the island no longer holds belongs to a notice whose phone has gone off the channel, and nothing is sent
+    /// for it: the page is always a moment behind the wire, and a press there is no promise that the wire still stands.
+    /// </summary>
+    void About(string key, string what, string type, Func<(Phone Holder, string Id, string Reply), JsonObject> body)
+    {
+        (Phone Holder, string Id, string Reply) found;
+        lock (_gate)
+        {
+            if (!_held.TryGetValue(key, out found))
+            {
+                Said($"a notice was pressed that no phone is holding here any more: {key}");
+                return;
+            }
+        }
+
+        Said($"{found.Holder.Name} is asked to {what}");
+        _ = Send(found.Holder, Frame(type, body(found)), _turns);
+    }
+
+    /// <summary>Take a notice off the phone's own screen, as its owner would have.</summary>
+    public void Dismiss(string key) => About(key, "put a notice away", "kdeconnect.notification",
+        one => new JsonObject { ["cancel"] = one.Id });
+
+    /// <summary>Press one of the buttons the phone put under its notice, by the name the phone gave it.</summary>
+    public void Press(string key, string action) => About(key, $"press “{action}”", "kdeconnect.notification.action",
+        one => new JsonObject { ["key"] = one.Id, ["action"] = action });
+
+    /// <summary>Answer a notice with the words the island was holding when its owner pressed.</summary>
+    public void Reply(string key, string message) => About(key, $"answer with {message.Length} signs",
+        "kdeconnect.notification.reply",
+        one => new JsonObject { ["requestReplyId"] = one.Reply, ["message"] = message });
+
+    // ------------------------------------------------------ this machine's sayings, said at the phone
+
+    /// <summary>
+    /// A saying of this machine, put on the phone's own screen. The phone shows a notice a desktop sends it under the
+    /// notice's own type, but by a plugin the owner has to switch on for this device, and that plugin asks for three
+    /// fields by name before it builds anything: who the saying comes from, what it says, and a key of its own. A
+    /// packet missing any of the three is dropped without a word, and one marked silent is dropped on purpose — so the
+    /// island names all three and never says silent.
+    /// The key is a counting number rather than the long string a phone gives its own notices, since the phone files
+    /// what it shows under a whole number and two sayings sharing one are the same one on its screen. A saying sent
+    /// this way does not come back as a notice from the phone: the app keeps notifications of its own package out of
+    /// what it forwards, and marks this one local besides.
+    /// </summary>
+    public void Announce(string app, string text)
+    {
+        List<Phone> phones = Standing();
+        if (phones.Count == 0)
+        {
+            Said($"a saying was ready for the phone and no phone stands here: {app}");
+            return;
+        }
+
+        string id = (++_spoken).ToString();
+        foreach (Phone phone in phones)
+            _ = Send(phone, Frame("kdeconnect.notification", new JsonObject
+            {
+                ["appName"] = app,
+                ["ticker"] = text,
+                ["id"] = id,
+            }), _turns);
+        Said($"{app} is said on {phones.Count} phone: {Trimmed(text)}");
+    }
+
+    /// <summary>
+    /// A copy from this machine, laid on the phone's clipboard. The phone's clipboard plugin takes words under the very
+    /// type it sends them with, and writes them into its own record of what its clipboard holds before the system
+    /// notices the change — which is why a copy across the wire does not come straight back over it. Only words
+    /// cross: a phone's clipboard, as that plugin reads it, is one string, and a picture or a file of this machine has
+    /// no shape to be poured into it.
+    /// </summary>
+    public void Pass(string text)
+    {
+        List<Phone> phones = Standing();
+        if (phones.Count == 0) return; // a copy nobody is standing to take is not worth a line in the log
+        foreach (Phone phone in phones)
+            _ = Send(phone, Frame("kdeconnect.clipboard", new JsonObject { ["content"] = text }), _turns);
+        Said($"a copy of {text.Length} signs went to {phones.Count} phone");
+    }
+
+    /// <summary>The number the next saying is filed under on the phone. Started from the clock so an island that is
+    /// closed and opened again does not replace the saying the last run left on the phone's bar.</summary>
+    long _spoken = Environment.TickCount64;
+
+    /// <summary>A saying shortened for the log, which is read one line at a time.</summary>
+    static string Trimmed(string text) => text.Length <= 70 ? text : text[..70] + "…";
+
+    // ------------------------------------------------------------- this machine's music, at the phone's word
+
+    /// <summary>
+    /// The one player this island offers a phone: this machine's music, whichever program is making it. The family
+    /// lists players by name and asks about each under that name, and an island with a dozen sessions behind it still
+    /// has one set of buttons — so it answers for one name, and drives whatever is really playing behind it.
+    /// </summary>
+    const string Player = "DynamicIsland";
+
+    /// <summary>
+    /// What the phone said about this machine's music. The asking and the doing are one packet type and are told apart
+    /// by their fields: a list asked for is given back whole, a state asked for is given back for one player, and a
+    /// button named is a button pressed here. The two counts the phone sends for where a song should be put are not in
+    /// one coin — `SetPosition` is milliseconds of the song, `Seek` is microseconds of a stride over it — and both are
+    /// read here as the phone means them, in seconds. A loop and a shuffle are the phone's own asking: no music on
+    /// this machine is driven by a button that promises them, so nothing is said back and nothing is pretended.
+    /// </summary>
+    async Task Music(Phone phone, Packet packet, CancellationToken token)
+    {
+        JsonElement body = packet.Body;
+        string who = Text(body, "player");
+
+        if (Flag(body, "requestPlayerList"))
+        {
+            Said($"{phone.Name} asked what music this machine plays");
+            await Send(phone, Frame("kdeconnect.mpris", new JsonObject
+            {
+                ["playerList"] = new JsonArray(JsonValue.Create(Player)),
+            }, packet.Id), token);
+            return;
+        }
+
+        if (who.Length > 0 && who != Player) return; // a player this island does not answer for is not its to drive
+
+        if (Flag(body, "requestNowPlaying") || Flag(body, "requestVolume"))
+        {
+            await Say(phone, token);
+            return;
+        }
+
+        string action = Text(body, "action");
+        if (action.Length > 0)
+        {
+            Bridge.Command? order = action switch
+            {
+                "PlayPause" => new Bridge.Command("toggle"),
+                "Play" => new Bridge.Command("play"),
+                "Pause" => new Bridge.Command("pause"),
+                "Stop" => new Bridge.Command("stop"),
+                "Next" => new Bridge.Command("next"),
+                "Previous" => new Bridge.Command("previous"),
+                _ => null,
+            };
+            if (order != null) Said($"{phone.Name} asked the music to {action}");
+            else Said($"{phone.Name} asked the music to {action}, which this machine has no button for");
+            if (order != null) _bridge.Order(order);
+            return;
+        }
+
+        if (Whole(body, "SetPosition") is long at)
+        {
+            Said($"{phone.Name} put the music at {at / 1000} seconds");
+            _bridge.Order(new Bridge.Command("seek", at / 1000.0));
+        }
+        else if (Whole(body, "Seek") is long stride) // counted in microseconds, the way the phone's own stride is set
+        {
+            Said($"{phone.Name} moved the music by {stride / 1_000_000} seconds");
+            _bridge.Order(new Bridge.Command("skip", stride / 1_000_000.0));
+        }
+        else if (Whole(body, "setVolume") is long level)
+        {
+            Said($"{phone.Name} set this machine at {level} hundredths of its loudest");
+            _bridge.Order(new Bridge.Command("volume", level / 100.0));
+        }
+    }
+
+    /// <summary>
+    /// This machine's music, said to every phone that stands talking. A phone looks once when its media page opens and
+    /// listens after, so a change left unsaid is a phone showing yesterday's song until its owner opens the page again.
+    /// A song merely moving is not a change worth a packet — the phone counts the going from the moment it was told —
+    /// and one is said every half-minute at most while it plays, so that count does not drift.
+    /// </summary>
+    public void Mirror(Bridge.Playing state)
+    {
+        bool changed = NotTheSameAs(_playing, state);
+        bool drifted = state.IsPlaying && DateTime.UtcNow - _mirrored > TimeSpan.FromSeconds(30);
+        _playing = state;
+        if (!changed && !drifted) return;
+        _mirrored = DateTime.UtcNow;
+        foreach (Phone phone in Standing()) _ = Say(phone, _turns);
+    }
+
+    static bool NotTheSameAs(Bridge.Playing was, Bridge.Playing now) =>
+        was.Title != now.Title || was.Artist != now.Artist || was.IsPlaying != now.IsPlaying
+        || was.LengthMs != now.LengthMs || was.Volume != now.Volume || was.Seekable != now.Seekable;
+
+    /// <summary>The state of this machine's music, in the coin a phone's media page is built to read.</summary>
+    async Task Say(Phone phone, CancellationToken token)
+    {
+        Bridge.Playing now = _playing;
+        var body = new JsonObject
+        {
+            ["player"] = Player,
+            ["title"] = now.Title,
+            ["artist"] = now.Artist,
+            ["isPlaying"] = now.IsPlaying,
+            ["canPlay"] = true,
+            ["canPause"] = true,
+            ["canGoNext"] = true,
+            ["canGoPrevious"] = true,
+            ["canSeek"] = now.Seekable,
+            ["volume"] = now.Volume,
+            // the island has no picture of the song to hand over, and a phone told so goes and looks for one itself
+            ["supportAlbumArtPayload"] = false,
+        };
+        if (now.LengthMs > 0)
+        {
+            body["length"] = now.LengthMs;
+            body["pos"] = Math.Clamp(now.PositionMs, 0, now.LengthMs);
+        }
+
+        await Send(phone, Frame("kdeconnect.mpris", body), token);
     }
 
     static bool Ask(Packet packet) =>
@@ -656,6 +1061,83 @@ sealed class BridgeKde
         string line = Encoding.UTF8.GetString(held.GetRange(0, cut).ToArray());
         held.RemoveRange(0, cut + 1);
         return line;
+    }
+
+    /// <summary>
+    /// The picture a notice rides with, taken from the door the phone opened for it. A payload of this family never
+    /// travels down the packet channel: `LanLink.sendPacket` binds a port of its own on the phone's road, names it at
+    /// the packet's root beside the byte count, waits ten seconds for the far side to knock, and writes the bytes there
+    /// once they have been asked for over TLS. So the island crosses to that port exactly as it crosses for a promised
+    /// file — and a picture nobody knocks for is not lost, since the phone only stops offering it for that one notice
+    /// and sends it again at the next, the count over the bytes being what tells the two apart.
+    /// </summary>
+    async Task<byte[]?> Art(Phone phone, Packet packet, CancellationToken token)
+    {
+        // the family puts a payload's promise at the packet's root, but the notices plugin has been seen to write its
+        // count into the body beside the hash, so both places are read — a picture is worth the second look
+        long? promised = Whole(packet.Body, "payloadSize") ?? Whole(packet.Root, "payloadSize");
+        if (promised is not long size || size <= 0) return null;
+        int port = 0;
+        foreach (JsonElement where in new[] { packet.Root, packet.Body })
+        {
+            if (where.TryGetProperty("payloadTransferInfo", out JsonElement door)
+                && door.ValueKind == JsonValueKind.Object)
+            {
+                port = Number(door, "port") ?? 0;
+                if (port > 0) break;
+            }
+        }
+        if (port <= 0 || phone.Address.Length == 0)
+        {
+            // a promise of bytes with no door to bring them through is worth one honest line, since without it an
+            // owner sees a notice without a picture and no telling why
+            Said($"{phone.Name} promised a notice picture of {size} bytes and named no door to carry it through");
+            return null;
+        }
+        if (size > LargestPicture)
+        {
+            Said($"{phone.Name} offers a notice picture of {size} bytes, past what the island keeps");
+            return null;
+        }
+
+        // The phone hangs up on this crossing after its own ten seconds, so the island's patience is shorter than the
+        // notice's worth of waiting and a dozing phone costs a picture rather than a pause in the talking.
+        using var breath = CancellationTokenSource.CreateLinkedTokenSource(token);
+        breath.CancelAfter(Hurried);
+        var pile = new MemoryStream((int)size);
+        try
+        {
+            using var client = new TcpClient();
+            await client.ConnectAsync(phone.Address, port, breath.Token);
+            using var wire = new SslStream(client.GetStream(), true);
+            await wire.AuthenticateAsClientAsync(new SslClientAuthenticationOptions
+            {
+                TargetHost = phone.Id,
+                ClientCertificates = [_certificate],
+                RemoteCertificateValidationCallback = (_, _, _, _) => true,
+                EnabledSslProtocols = SslProtocols.Tls12,
+            }, breath.Token);
+
+            var spare = new byte[(int)Math.Min(size, 16384)];
+            while (pile.Length < size)
+            {
+                int got = await wire.ReadAsync(spare, 0, spare.Length, breath.Token);
+                if (got <= 0) break;
+                pile.Write(spare, 0, got);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or SocketException or AuthenticationException
+            or OperationCanceledException or ArgumentException or InvalidOperationException)
+        {
+            // a picture that did not arrive leaves the notice whole; only a channel closing around it says nothing
+            if (!token.IsCancellationRequested)
+            {
+                App.Log(new IOException($"{phone.Name} offered a notice picture that did not arrive: {ex.Message}", ex));
+            }
+            return null;
+        }
+
+        return pile.Length >= size ? pile.ToArray() : null;
     }
 
     static Packet? Parse(string line)
@@ -714,7 +1196,7 @@ sealed class BridgeKde
             ["deviceType"] = "desktop",
             ["protocolVersion"] = ProtocolVersion,
             ["incomingCapabilities"] = new JsonArray(CanHear.Select(s => (JsonNode)s).ToArray()),
-            ["outgoingCapabilities"] = new JsonArray(),
+            ["outgoingCapabilities"] = new JsonArray(CanSay.Select(s => (JsonNode)s).ToArray()),
         };
         // a shout names the door to come to, and the address it stands on: a phone can tell neither from the wire
         if (onAir)
@@ -731,10 +1213,36 @@ sealed class BridgeKde
         return Frame("kdeconnect.identity", body);
     }
 
-    /// <summary>The plugins of a phone that find something to do with an island: what it listens for, by their names.</summary>
+    /// <summary>
+    /// The plugins of a phone that find something to do with an island: what it listens for, by their names. The names
+    /// are the packet types themselves, and they have to be spelled as the phone spells them, because the app decides
+    /// which of its plugins to run for a device by matching these two lists against each plugin's own — see
+    /// <see cref="CanSay" />. A type named wrongly is a plugin the phone sees no reason to keep for this island.
+    /// </summary>
     static readonly string[] CanHear =
     [
-        "kdeconnect.battery", "kdeconnect.notifications", "kdeconnect.clipboard", "kdeconnect.share",
+        // a notice arrives as `kdeconnect.notification`, singular, the way the phone's outgoing names it; a file
+        // arrives as `kdeconnect.share.request`, and a `kdeconnect.share` of our inventing matches nothing; a phone's
+        // media page asks about this machine's music under `kdeconnect.mpris.request`, and hears it under the shorter
+        // name — see <see cref="CanSay" />
+        "kdeconnect.battery", "kdeconnect.notification", "kdeconnect.clipboard", "kdeconnect.share.request",
+        "kdeconnect.mpris.request",
+    ];
+
+    /// <summary>
+    /// What this island speaks back, named the same way, and just as much a matter of the phone's arithmetic: a plugin
+    /// is kept for a device when the device can send one of the types the plugin can hear, or receive one of the types
+    /// the plugin sends. The notices plugin answers an ask, a reply and a button press, and takes a notice away under
+    /// the notice's own type; the media page of a phone only runs its controls for a device that says it can be told
+    /// what it is playing.
+    /// </summary>
+    static readonly string[] CanSay =
+    [
+        // the clipboard is named here as well as below: the phone keeps its clipboard plugin for a device that can
+        // both send it and hear it, and this island now does — a copy made here is laid on the phone's clipboard, and
+        // one made there is kept here
+        "kdeconnect.notification", "kdeconnect.notification.request", "kdeconnect.notification.reply",
+        "kdeconnect.notification.action", "kdeconnect.mpris", "kdeconnect.clipboard",
     ];
 
     /// <summary>
@@ -785,37 +1293,58 @@ sealed class BridgeKde
 
     /// <summary>
     /// The owner's answer to the phone waiting at the door. Nothing is trusted before it is said; a refusal is carried
-    /// back over the same channel as the plain no the family uses, so that the phone stops asking.
+    /// back over whatever channel that phone now stands on, which is not necessarily the one its ask came over — a
+    /// phone crosses itself anew while a person reads the pill, and a yes written down a channel that has ended is a
+    /// yes that never leaves this machine while the phone's screen goes on asking.
     /// </summary>
     public void Answer(bool yes)
     {
+        (string Id, string Name, string Fingerprint)? asked;
         Phone? phone;
         lock (_gate)
         {
-            phone = _pending;
+            asked = _pending;
             _pending = null;
+            // a place taken at the door before any channel exists carries no wire yet, and nothing is written there
+            phone = asked is { } want && _live.TryGetValue(want.Id, out Phone? now) && now.Secure != null ? now : null;
         }
-        if (phone == null) return;
+        if (asked == null) return;
 
-        phone.Pending = false;
-        Said($"the owner said {(yes ? "yes" : "no")} to {phone.Name}");
+        Said($"the owner said {(yes ? "yes" : "no")} to {asked.Value.Name}"
+            + (phone == null ? ", with no channel standing under that name to carry it" : ""));
         if (yes)
         {
-            phone.Paired = true;
-            Trust(phone);
+            // trusted by the fingerprint the owner judged, whether or not a channel is here to be told now: a phone
+            // that crosses again a second later is found trusted on that new channel and answered from there
+            Trust(asked.Value.Id, asked.Value.Name, asked.Value.Fingerprint);
+            if (phone != null)
+            {
+                phone.Paired = true;
+                // the yes is on its way, so the phone's own yes is expected back — and must not be answered with a
+                // second one. The shelf of notices it holds is asked for when that answer arrives, not here.
+                phone.Confirming = DateTime.UtcNow.AddSeconds(30);
+            }
         }
-        _ = Task.Run(() => Send(phone, Frame("kdeconnect.pair", PairBody(yes)), _turns), _turns);
-        _bridge.Answer(phone.Name, yes);
+        if (phone != null) _ = Task.Run(async () =>
+        {
+            await Send(phone, Frame("kdeconnect.pair", PairBody(yes)), _turns);
+            // and only after the yes has left this machine is the phone asked what it holds. The order on the one wire
+            // is what matters, not the delay: the app marks itself paired as it reads the yes, and a notice request
+            // that arrived first would be a plugin packet reaching a phone that does not yet stand paired — which the
+            // app takes for the other side having unpaired, and answers by unpairing (Device.onPacketReceived)
+            if (yes && Settings.PhoneNotices) await Holds(phone);
+        }, _turns);
+        _bridge.Answer(asked.Value.Name, yes);
     }
 
     // ------------------------------------------------------------- trust, kept between runs
 
-    static void Trust(Phone phone)
+    static void Trust(string id, string name, string fingerprint)
     {
         try
         {
             List<string> known = Phones().ToList();
-            string entry = $"{phone.Id}\t{phone.Name}\t{phone.Fingerprint}";
+            string entry = $"{id}\t{name}\t{fingerprint}";
             if (!known.Contains(entry))
             {
                 known.Add(entry);
@@ -868,6 +1397,51 @@ sealed class BridgeKde
     static long? Whole(JsonElement body, string name) =>
         body.ValueKind == JsonValueKind.Object && body.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.Number
             ? value.GetInt64() : null;
+
+    /// <summary>
+    /// Whether a phone said a thing as true. Absent is false, as the family means it, and so is anything that is not a
+    /// saying of yes: the app spells most of its flags as JSON words, but a phone counting its own packet may send a
+    /// number or a word of text, and the one left unread is a charge drawn as though the phone were running down.
+    /// </summary>
+    static bool Flag(JsonElement body, string name)
+    {
+        if (body.ValueKind != JsonValueKind.Object || !body.TryGetProperty(name, out JsonElement value)) return false;
+        return value.ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.Number => (value.TryGetInt32(out int told) ? told : value.TryGetDouble(out double part) ? part : 0) != 0,
+            JsonValueKind.String => bool.TryParse(value.GetString(), out bool word) && word,
+            _ => false,
+        };
+    }
+
+    /// <summary>A list of packet types said as names, which is how a phone counts out the plugins it is running.</summary>
+    static string[] Names(JsonElement body, string name) =>
+        body.ValueKind == JsonValueKind.Object && body.TryGetProperty(name, out JsonElement found)
+            && found.ValueKind == JsonValueKind.Array
+            ? found.EnumerateArray().Where(one => one.ValueKind == JsonValueKind.String)
+                .Select(one => one.GetString()!).ToArray()
+            : [];
+
+    /// <summary>
+    /// The buttons a notice carries, in the order the phone puts them under it. The app names them plainly, and no
+    /// island can press one it cannot name: the press is carried back to the phone by that same name.
+    /// </summary>
+    static string[] Titles(JsonElement body) =>
+        body.ValueKind == JsonValueKind.Object && body.TryGetProperty("actions", out JsonElement value)
+        && value.ValueKind == JsonValueKind.Array
+            ? value.EnumerateArray().Where(one => one.ValueKind == JsonValueKind.String).Select(one => one.GetString() ?? "")
+                .Where(one => one.Length > 0).Take(2).ToArray()
+            : [];
+
+    /// <summary>
+    /// The moment a notice was put up. The app counts it out in milliseconds and says it as text, the desktop as a
+    /// number, and an island that reads only one of the two sorts the other phone's shelf as notices from no time at all.
+    /// </summary>
+    static long When(JsonElement body) =>
+        Whole(body, "time") ?? (body.ValueKind == JsonValueKind.Object
+            && body.TryGetProperty("time", out JsonElement value) && value.ValueKind == JsonValueKind.String
+            && long.TryParse(value.GetString(), out long counted) ? counted : 0);
 
     /// <summary>
     /// The hash a phone shows its owner, so that two screens can be compared: SHA-256 of the certificate itself,
@@ -964,8 +1538,10 @@ sealed class BridgeKde
         public byte[] PeerKey { get; set; } = [];
         public bool Paired { get; set; }
 
-        /// <summary>Whether this phone's request is the one shown on the page, waiting for the owner.</summary>
-        public bool Pending { get; set; }
+        /// <summary>Until when a pair packet from this phone is taken as its own yes to the one the island has just
+        /// said, rather than as a fresh ask to be answered back. The two are made of the same words, and answering a
+        /// confirmation is how a phone comes to unpair a pairing it has agreed to.</summary>
+        public DateTime Confirming = DateTime.MinValue;
 
         public SslStream Secure = null!;
 
@@ -983,7 +1559,9 @@ sealed class BridgeKde
     readonly record struct Packet(string Raw, string Type, long Id, JsonElement Body, JsonElement Root);
 
     /// <summary>A phone as it names itself, on the broadcast or across an open socket before any TLS channel exists.</summary>
-    sealed record Identity(string Id, string Name, string Address, int Port, int Protocol)
+    /// <summary>What a phone says it is, and the packet types it says it can send — which are the plugins it runs,
+    /// named as those plugins name themselves.</summary>
+    sealed record Identity(string Id, string Name, string Address, int Port, int Protocol, string[] Sends)
     {
         public static Identity? Of(byte[] datagram, string from) => Of(Encoding.UTF8.GetString(datagram), from);
 
@@ -1014,7 +1592,8 @@ sealed class BridgeKde
 
                 // a shout names the door to come to; a phone that came by itself has no need of one
                 int given = Number(body, "tcpPort") ?? 0;
-                return new Identity(id, name, from, given is >= 1716 and <= 1764 ? given : TcpPort, protocol);
+                return new Identity(id, name, from, given is >= 1716 and <= 1764 ? given : TcpPort, protocol,
+            Names(body, "outgoingCapabilities"));
             }
             catch (Exception ex) when (ex is JsonException or InvalidOperationException)
             {

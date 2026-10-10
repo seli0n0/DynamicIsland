@@ -100,7 +100,8 @@ sealed class Glass
         if (_hwnd != IntPtr.Zero) Native.PlaceBehind(_hwnd, new WindowInteropHelper(_over).Handle);
     }
 
-    public void Cut((Rect Box, double Radius) pill, (Rect Box, double Radius) bubble, Matrix toPixels)
+    /// <summary>Cut the glass to the island's shape: the blur lies only where the pill and its bubble lie.</summary>
+    public void Fit((Rect Box, double Radius) pill, (Rect Box, double Radius) bubble, Matrix toPixels)
     {
         _pill?.Fit(pill, toPixels);
         _bubble?.Fit(bubble, toPixels);

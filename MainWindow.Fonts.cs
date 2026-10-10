@@ -10,16 +10,17 @@ namespace DynamicIsland;
 
 public partial class MainWindow
 {
+    const double FaceTileSample = 21;
+
     static readonly int[] FontScales = [80, 90, 100, 110, 120, 130, 140, 150, 160];
 
     readonly Dictionary<DependencyObject, double> _drawnSizes = new();
-    FontFamily? _plainFace, _plainDisplay;
 
-    void FontsRow_Click(object sender, RoutedEventArgs e)
-    {
-        UpdateFonts();
-        ShowPanel(Panel.Fonts);
-    }
+    /// <summary>The family behind each tile of the strip, in tile order: nothing at all for SF Pro, then the loose
+    /// families in the order the strip shows them.</summary>
+    readonly List<string> _faceTiles = [];
+
+    FontFamily? _plainFace, _plainDisplay;
 
     void SetFace(string family)
     {
@@ -27,9 +28,10 @@ public partial class MainWindow
         ApplyFonts();
     }
 
-    void Font_Click(object sender, RoutedEventArgs e) => SetFace(NextFace(FontPack.Families(), Settings.Font, 1));
+    void FaceTile_Click(object sender, RoutedEventArgs e) =>
+        SetFace(_faceTiles[FaceStrip.Children.IndexOf((UIElement)sender)]);
 
-    void FontScale_Click(object sender, RoutedEventArgs e) => SetFontScale(Settings.FontScale + 5);
+    void FontScaleSlider_Changed(object? sender, EventArgs e) => SetFontScale((int)FontScaleSlider.Value);
 
     void SetFontScale(int percent)
     {
@@ -72,8 +74,6 @@ public partial class MainWindow
             App.Log(ex);
         }
     }
-
-    void FontReset_Click(object sender, RoutedEventArgs e) => SetFace("");
 
     void ApplyFonts()
     {
@@ -125,15 +125,52 @@ public partial class MainWindow
 
     void UpdateFonts()
     {
+        SyncFaceTiles();
         FontNameText.Text = FontPack.Preview(Settings.Font);
         FontScaleText.Text = Settings.FontScale + "%";
-        FontSample.Text = $"{DateTime.Now:HH:mm} Aa Бвг Остров";
+        FontScaleSlider.Set(Settings.FontScale, LookView.IsVisible);
+        string shown = FontPack.Preview(Settings.Font);
+        for (int i = 0; i < _faceTiles.Count; i++)
+            if (FontPack.Preview(_faceTiles[i]) == shown)
+            {
+                ((RadioButton)FaceStrip.Children[i]).IsChecked = true;
+                break;
+            }
     }
 
-    static string NextFace(string[] among, string inUse, int by)
+    /// <summary>
+    /// Builds a tile per family there is to choose from, each drawing its own «Aa» in the face it stands for so the
+    /// strip is read rather than remembered. Only rebuilt when the families themselves have changed — loading a file
+    /// adds one — since a rebuilt strip would throw away the pointer's hover and the ring of the tile in use.
+    /// </summary>
+    void SyncFaceTiles()
     {
-        if (among.Length == 0) return "";
-        int at = Array.FindIndex(among, s => string.Equals(s, inUse, StringComparison.OrdinalIgnoreCase));
-        return among[(Math.Max(at, 0) + by + among.Length) % among.Length];
+        var families = new List<string> { "" };
+        families.AddRange(FontPack.Families()
+            .Where(family => !FontPack.Bundled.Contains(family, StringComparer.OrdinalIgnoreCase)));
+        if (_faceTiles.SequenceEqual(families, StringComparer.OrdinalIgnoreCase)) return;
+
+        _faceTiles.Clear();
+        _faceTiles.AddRange(families);
+        FaceStrip.Children.Clear();
+        foreach (string family in families)
+        {
+            var tile = new RadioButton
+            {
+                Style = (Style)FindResource("LookTile"),
+                Tag = FontPack.Preview(family),
+                Content = new TextBlock
+                {
+                    Text = "Aa",
+                    FontSize = FaceTileSample,
+                    FontFamily = FontPack.Face(family, "SF Pro Text"),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                },
+            };
+            tile.Click += FaceTile_Click;
+            FaceStrip.Children.Add(tile);
+        }
+        FitFonts(FaceStrip, Math.Clamp(Settings.FontScale / 100.0, 0.6, 1.7));
     }
 }

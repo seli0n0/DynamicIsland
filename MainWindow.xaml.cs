@@ -13,9 +13,9 @@ namespace DynamicIsland;
 
 public partial class MainWindow : Window
 {
-    enum View { Idle, Media, Timer, Volume, Charge, Focus, Toast, Notice, PairAsk, MediaBig, IdleBig, TimerBig, TimerSet, Menu, Settings, Look, Position, Fonts, Shelf, Phone, ClipToast, Loading }
+    enum View { Idle, Media, Timer, Record, Volume, Charge, Focus, Toast, Notice, PairAsk, MediaBig, IdleBig, TimerBig, TimerSet, RecordBig, RecordSet, Menu, Settings, Look, Shelf, Phone, PhoneSet, ClipToast, Loading }
 
-    enum Panel { None, Player, Timer, TimerSet, Menu, Settings, Look, Position, Fonts, Shelf, Phone }
+    enum Panel { None, Player, Timer, TimerSet, Record, Menu, Settings, Look, Shelf, Phone, PhoneSet }
 
     readonly record struct PillShape(double Width, double Height, double Radius);
 
@@ -24,6 +24,7 @@ public partial class MainWindow : Window
         [View.Idle] = new(118, 34, 17),
         [View.Media] = new(210, 34, 17),
         [View.Timer] = new(132, 34, 17),
+        [View.Record] = new(132, 34, 17),
         [View.Volume] = new(250, 34, 17),
         [View.Charge] = new(230, 34, 17),
         [View.Focus] = new(236, 34, 17),
@@ -34,13 +35,14 @@ public partial class MainWindow : Window
         [View.IdleBig] = new(320, 124, 38),
         [View.TimerBig] = new(330, 92, 40),
         [View.TimerSet] = new(300, 190, 38),
+        [View.RecordBig] = new(340, 92, 40),
+        [View.RecordSet] = new(320, 92, 40),
         [View.Menu] = new(300, 133, 34),
         [View.Settings] = new(320, 479, 34),
         [View.Look] = new(352, 340, 34),
-        [View.Position] = new(320, 272, 34),
-        [View.Fonts] = new(320, 252, 34),
         [View.Shelf] = new(380, 480, 34),
         [View.Phone] = new(320, 300, 34),
+        [View.PhoneSet] = new(320, 400, 34),
         [View.ClipToast] = new(250, 34, 17),
         [View.Loading] = new(118, 34, 17),
     };
@@ -59,11 +61,18 @@ public partial class MainWindow : Window
         [View.MediaBig] = new(20, 20, 64, 22, 52, 38, 26, 1),
     };
 
-    static readonly View[] MenuPages = [View.Settings, View.Look, View.Position, View.Fonts, View.TimerSet, View.TimerBig, View.Shelf, View.Phone];
+    static readonly View[] MenuPages = [View.Settings, View.Look, View.PhoneSet, View.TimerSet, View.TimerBig,
+        View.RecordSet, View.RecordBig, View.Shelf, View.Phone];
 
     /// Pills that hold a page of rows are as tall as those rows: the host is clipped to the pill, so a row that
     /// falls past its bottom edge is not low in the list any more, it is gone. See <see cref="FitPages"/>.
-    const double PageBottomPad = 6;
+    const double PageBottomPad = PinnedPage.Pad;
+
+    /// The most rows a page of the pinned kind may take before the rest has to be scrolled to: the look page holds the
+    /// placement and the faces as sections that open under it, the smartphone page its outward doors and its code, and
+    /// a page that grew to whatever an opened section wanted would run off the screen at the largest size the island is
+    /// allowed. Past this much of rows the page stops growing and the wheel travels the rest.
+    const double PageMost = 500;
 
     UpdateWindow? _updateWindow;
 
@@ -79,6 +88,10 @@ public partial class MainWindow : Window
     static readonly TimeSpan AwayDuration = TimeSpan.FromSeconds(5);
 
     readonly Dictionary<View, FrameworkElement> _views;
+
+    /// The pages that carry more rows than the pill may show, so each keeps its caption pinned and travels the rest.
+    readonly Dictionary<View, PinnedPage> _pages;
+
     readonly SolidColorBrush _dim, _orange, _green, _red, _indigo;
     readonly AudioService _audio = new();
     readonly MediaService _media;
@@ -124,6 +137,7 @@ public partial class MainWindow : Window
             [View.Idle] = IdleView,
             [View.Media] = MediaView,
             [View.Timer] = TimerView,
+            [View.Record] = RecordView,
             [View.Volume] = VolumeView,
             [View.Charge] = ChargeView,
             [View.Focus] = FocusView,
@@ -134,23 +148,42 @@ public partial class MainWindow : Window
             [View.IdleBig] = IdleBigView,
             [View.TimerBig] = TimerBigView,
             [View.TimerSet] = TimerSetView,
+            [View.RecordBig] = RecordBigView,
+            [View.RecordSet] = RecordSetView,
             [View.Menu] = MenuView,
             [View.Settings] = SettingsView,
             [View.Look] = LookView,
-            [View.Position] = PositionView,
-            [View.Fonts] = FontsView,
             [View.Shelf] = ShelfView,
             [View.Phone] = PhoneView,
+            [View.PhoneSet] = PhoneSetView,
             [View.ClipToast] = ClipToastView,
             [View.Loading] = LoadingView,
         };
+
+        // The three pages that read as one flat list of rows under a pinned caption. A page that grew to whatever an
+        // opened section wanted would run off the screen at the largest size the island is allowed, so each is cut to
+        // what a page may take and the wheel travels the rest of it.
+        _pages = new()
+        {
+            [View.Look] = new(LookBack, LookBody, LookMove, LookEdgeTop, LookEdgeBottom, LookView, PageMost,
+                [new(BackdropTiles, BackdropChevron), new(LyricChangeTiles, LyricChangeChevron),
+                 new(HoverTiles, HoverChevron), new(PlaceTiles, PlaceChevron), new(FontTiles, FaceChevron)],
+                StartShapeLoop),
+            [View.Phone] = new(PhoneHead, PhoneBody, PhoneMove, PhoneEdgeTop, PhoneEdgeBottom, PhoneView, PageMost,
+                [], StartShapeLoop),
+            [View.PhoneSet] = new(PhoneSetBack, PhoneSetBody, PhoneSetMove, PhoneSetEdgeTop, PhoneSetEdgeBottom,
+                PhoneSetView, PageMost, [new(PhoneOutTiles, PhoneOutChevron), new(CodeTiles, CodeChevron)],
+                StartShapeLoop),
+        };
+
         _spotSprings = [_coverLeft, _coverTop, _coverSize, _barsRight, _barsCenterY, _barsWidth, _barsHeight, _barsOpen];
         _springs =
         [
-            _width, _height, _radius, _scale, _offsetY, _userScale, _topGap, _bubbleSplit, _bubbleScale, _bubbleTimer, _bubbleShelf, _shelfBubbleWidth,
-            _shelfScroll, _volumeOvershoot, _leanX, _coverScale, .. _spotSprings,
+            _width, _height, _radius, _scale, _offsetY, _userScale, _topGap, _bubbleSplit, _bubbleScale, _bubbleRecord, _bubbleTimer, _bubbleShelf, _shelfBubbleWidth,
+            _shelfScroll, .. _pages.Values.Select(page => page.Travel), _volumeOvershoot, _leanX, _coverScale, .. _spotSprings,
         ];
         _timerTint = new SolidColorBrush(_orange.Color);
+        _recordTint = new SolidColorBrush(_red.Color);
         _lyricBlock = LyricA;
 
         _forcedView = Enum.TryParse(Argument("--view"), true, out View forced) ? forced : null;
@@ -169,6 +202,7 @@ public partial class MainWindow : Window
 
         _media = new MediaService(Dispatcher);
         _media.Changed += OnMediaChanged;
+        _media.Changed += MirrorMusic; // a phone's media page listens rather than asks, so every move is said outward
         _lyrics.Changed += OnLyricsChanged;
         _network = new NetworkService(Dispatcher);
         _network.Changed += OnNetworkChanged;
@@ -182,15 +216,14 @@ public partial class MainWindow : Window
         _shelf.PictureLoaded += OnShelfPictureLoaded;
         _copies.Changed += SyncClip;
         WireBridge();
+        _obs.Changed += OnObsChanged;
+        _obs.Saved += OnRecordingSaved;
 
         PrepareViews();
         Peekable(EdgeRow, EdgeChoices);
         Peekable(MonitorRow, MonitorChoices);
-        Peekable(AnchorRow, AnchorChoices);
-        Peekable(AlongRow, AlongChoices, chips: true);
-        Peekable(FontRow, FontChoices);
-        Peekable(FontScaleRow, FontScaleChoices, chips: true);
         ApplyTimerTint();
+        ApplyRecordTint();
         TuneDragSprings(false);
         _ticker.Tick += (_, _) => OnTick();
         Loaded += OnLoaded;
@@ -228,9 +261,9 @@ public partial class MainWindow : Window
     {
         foreach ((View view, FrameworkElement body) in new (View, FrameworkElement)[]
         {
-            (View.Menu, MenuBody), (View.Settings, SettingsBody), (View.Look, LookBody),
-            (View.Position, PositionBody), (View.Fonts, FontsBody), (View.Phone, PhoneBody),
+            (View.Menu, MenuBody), (View.Settings, SettingsBody),
         }) FitPage(view, body);
+        foreach (PinnedPage page in _pages.Values) page.Fit();
     }
 
     /// <summary>
@@ -309,7 +342,9 @@ public partial class MainWindow : Window
         RefreshUpdate();
         SyncAccent(false);
         SyncShelf();
+        SyncRecord();
         SyncGlass(false);
+        OpenFrost(Settings.Glass, false);
         SyncClip();
         if (Settings.Bridge) OpenBridge(); else RefreshPhone();
         PlayIntro();
@@ -325,6 +360,7 @@ public partial class MainWindow : Window
         catch (Exception ex) { App.Log(ex); }
         InfoMic.SetVisible(_mic.InUse);
         await ApplyNotices();
+        _obs.Start();
     }
 
     void PlayIntro()
@@ -360,6 +396,7 @@ public partial class MainWindow : Window
         if (_ticks % HeadsetReadTicks == 1) ReadHeadset(_audio.Device);
         UpdateLyric();
         UpdateTimer();
+        UpdateRecord();
         if (_ticks % FullscreenCheckTicks == 0)
         {
             CheckFullscreen();
@@ -383,16 +420,16 @@ public partial class MainWindow : Window
             Panel.Menu => View.Menu,
             Panel.Settings => View.Settings,
             Panel.Look => View.Look,
-            Panel.Position => View.Position,
-            Panel.Fonts => View.Fonts,
+            Panel.PhoneSet => View.PhoneSet,
             Panel.Shelf => View.Shelf,
             Panel.Phone => View.Phone,
             Panel.TimerSet => View.TimerSet,
+            Panel.Record => _obs.Recording ? View.RecordBig : View.RecordSet,
             Panel.Timer when _countdown.IsActive => View.TimerBig,
             Panel.Timer or Panel.Player => _media.HasTrack ? View.MediaBig : View.IdleBig,
             _ => _transientView ?? (_updater.State == Updater.Stage.Loading ? View.Loading
                 : _pairAsk != null ? View.PairAsk
-                : IsMediaActive ? View.Media : _countdown.IsActive ? View.Timer : View.Idle),
+                : IsMediaActive ? View.Media : _obs.Recording ? View.Record : _countdown.IsActive ? View.Timer : View.Idle),
         };
         return target == View.Toast && !_media.HasTrack ? View.Idle : target;
     }
@@ -461,7 +498,7 @@ public partial class MainWindow : Window
     {
         View.Media => PillShapes[view] with { Width = _compactMediaWidth },
         View.MediaBig when _playerHasLyricRoom => PillShapes[view] with { Height = PlayerHeight + PlayerLyricsHeight },
-        View.Menu or View.Settings or View.Look or View.Position or View.Fonts or View.Phone => PillShapes[view] with { Height = _views[view].Height },
+        View.Menu or View.Settings or View.Look or View.Phone or View.PhoneSet => PillShapes[view] with { Height = _views[view].Height },
         _ => PillShapes[view],
     };
 

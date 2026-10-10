@@ -90,7 +90,9 @@ sealed class NoticeService
     {
         string who = "";
         try { who = note.AppInfo?.DisplayInfo?.DisplayName ?? ""; }
-        catch (Exception ex) { App.Log(ex); }
+        // an app that is not a package has no name for the corner to show, and WinRT says so by throwing: the title
+        // stands in below, and the owner's log is not the place for a word about every ordinary desktop program
+        catch { }
 
         var lines = new List<string>();
         try

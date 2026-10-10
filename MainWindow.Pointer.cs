@@ -142,8 +142,14 @@ public partial class MainWindow
 
     void ToggleOpen()
     {
+        if (_view == View.Notice && _noticeOpen is { } open)
+        {
+            open();
+            EndTransient();
+            return;
+        }
         if (_ringing || _panel != Panel.None) SelectPanel(Panel.None);
-        else SelectPanel(IsMediaActive || !_countdown.IsActive ? Panel.Player : Panel.Timer);
+        else SelectPanel(IsMediaActive ? Panel.Player : _obs.Recording ? Panel.Record : _countdown.IsActive ? Panel.Timer : Panel.Player);
         UpdateView();
     }
 
@@ -214,15 +220,17 @@ public partial class MainWindow
         e.Handled = true;
         if (Native.IsCtrlDown) SwitchSource(-step);
         else if (_view == View.TimerSet) SetMinutes(_setupMinutes + step);
-        else if (_view == View.Position && EdgeRow.IsMouseOver) SetEdge((ScreenEdge)StepOption([0, 1, 2, 3], (int)Settings.Edge, step, false));
-        else if (_view == View.Position && MonitorRow.IsMouseOver) SetScreen(step);
-        else if (_view == View.Position && AnchorRow.IsMouseOver) SetAnchor((ScreenAnchor)StepOption([0, 1, 2], (int)Settings.Anchor, step, false));
-        else if (_view == View.Position && AlongRow.IsMouseOver) AddAlong(AlongStep * step);
         else if (_view == View.Look && SizeRow.IsMouseOver) SetScale(Settings.Scale + step * ScaleStep);
         else if (_view == View.Look && GapRow.IsMouseOver) SetGap(Settings.Gap + step * GapStep);
         else if (_view == View.Look && PulseRow.IsMouseOver) SetPulse(Math.Clamp(Settings.Pulse + step, 0, Pulses.Length - 1));
-        else if (_view == View.Fonts && FontRow.IsMouseOver) SetFace(NextFace(FontPack.Families(), Settings.Font, step));
-        else if (_view == View.Fonts && FontScaleRow.IsMouseOver) SetFontScale(Settings.FontScale + 5 * step);
+        else if (_view == View.Look && EdgeRow.IsMouseOver) SetEdge((ScreenEdge)StepOption([0, 1, 2, 3], (int)Settings.Edge, step, false));
+        else if (_view == View.Look && MonitorRow.IsMouseOver) SetScreen(step);
+        else if (_view == View.Look && AnchorRow.IsMouseOver) SetAnchor((ScreenAnchor)StepOption([0, 1, 2], (int)Settings.Anchor, step, false));
+        else if (_view == View.Look && AlongRow.IsMouseOver) SetAlong(Settings.Along + AlongStep * step);
+        else if (_view == View.Look && FontScaleRow.IsMouseOver) SetFontScale(Settings.FontScale + ScaleStep * step);
+        // a page scrolls only once nothing under the wheel wants the turn for itself, so a row that answers keeps
+        // answering even with the caption row scrolled out of sight
+        else if (_pages.TryGetValue(_view, out PinnedPage? page) && page.Overflow > 0) page.Scroll(-step);
         else if (_view == View.Shelf && ShelfOverflow > 0) ScrollShelf(-step);
         else if (_view == View.MediaBig && Settings.AppVolume && _audio.AdjustAppVolume(_media.Source, step * WheelVolumeStep, out float level))
             ShowPlayerVolume(level, false, true);

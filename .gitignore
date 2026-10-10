@@ -17,6 +17,9 @@ publish/
 # Claude Code local state
 .claude/
 
+# Footage from the owner's own phone
+/motiondesign/
+
 # OS noise
 Thumbs.db
 Desktop.ini

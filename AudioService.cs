@@ -56,6 +56,20 @@ sealed class AudioService
         _volume.SetMasterVolumeLevelScalar(Math.Clamp(level + delta, 0f, 1f), ref context);
     }
 
+    /// <summary>
+    /// Puts the machine's level where someone else asked for it, rather than a step from where it stands — which is
+    /// what a slider on another device means. A level above none also unmutes, since a person dragging a slider up
+    /// from the bottom of it is not asking to hear nothing at a louder volume.
+    /// </summary>
+    public void SetVolume(float level)
+    {
+        RefreshDevice();
+        if (_volume == null) return;
+        Guid context = Guid.Empty;
+        _volume.SetMasterVolumeLevelScalar(Math.Clamp(level, 0f, 1f), ref context);
+        if (level > 0) _volume.SetMute(false, ref context);
+    }
+
     public bool AdjustAppVolume(string appId, float delta, out float level)
     {
         level = 0;

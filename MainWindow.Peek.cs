@@ -11,7 +11,6 @@ namespace DynamicIsland;
 public partial class MainWindow
 {
     static readonly TimeSpan PeekRest = TimeSpan.FromMilliseconds(230), PeekGone = TimeSpan.FromMilliseconds(180);
-    static readonly int[] AlongSteps = [-50, -20, -8, 0, 8, 20, 50];
 
     readonly Dictionary<Button, (Func<Peek.Choice[]> Get, bool Chips)> _peeks = [];
     readonly DispatcherTimer _peekTimer = new();
@@ -129,32 +128,4 @@ public partial class MainWindow
             () => SetMonitor(s.Name),
             string.Equals(s.Name, _screen.Name, StringComparison.OrdinalIgnoreCase))).ToArray();
     }
-
-    Peek.Choice[] AnchorChoices()
-    {
-        bool across = Placement.Horizontal(Settings.Edge);
-        return
-        [
-            new(across ? "У левого края" : "У верхнего края", () => SetAnchor(ScreenAnchor.Start), Settings.Anchor == ScreenAnchor.Start),
-            new("По центру", () => SetAnchor(ScreenAnchor.Center), Settings.Anchor == ScreenAnchor.Center),
-            new(across ? "У правого края" : "У нижнего края", () => SetAnchor(ScreenAnchor.End), Settings.Anchor == ScreenAnchor.End),
-        ];
-    }
-
-    Peek.Choice[] AlongChoices() =>
-        [.. AlongSteps.Select(step => new Peek.Choice((step > 0 ? "+" : "") + step, () => AddAlong(step),
-            step == 0 && Settings.Along == 0))];
-
-    Peek.Choice[] FontChoices()
-    {
-        var list = new List<Peek.Choice> { new("SF Pro", () => SetFace(""), string.IsNullOrWhiteSpace(Settings.Font)) };
-        list.AddRange(FontPack.Families()
-            .Where(family => !FontPack.Bundled.Contains(family, StringComparer.OrdinalIgnoreCase))
-            .Select(family => new Peek.Choice(family, () => SetFace(family),
-                string.Equals(family, Settings.Font, StringComparison.OrdinalIgnoreCase))));
-        return list.ToArray();
-    }
-
-    Peek.Choice[] FontScaleChoices() =>
-        [.. FontScales.Select(pc => new Peek.Choice(pc + "%", () => SetFontScale(pc), pc == Settings.FontScale))];
 }

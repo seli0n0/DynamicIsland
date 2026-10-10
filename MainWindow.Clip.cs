@@ -14,13 +14,46 @@ public partial class MainWindow
     Button? _clipPressed;
     Point _clipFrom;
 
+    /// <summary>
+    /// The words the phone last left on this machine's clipboard. Setting the clipboard here is itself heard as a copy
+    /// made here, so without this the phone's own saying would be sent straight back to it on every arrival.
+    /// </summary>
+    string _fromPhone = "";
+
+    /// <summary>
+    /// The words this machine last laid on the phone. A copy is heard again as a copy made here even when the write
+    /// that would have replaced it was refused — a clipboard another window holds leaves the words it was refused
+    /// *behind* as the new copy — and those words are the ones the phone already has. Naming them again would send a
+    /// saying across a second time for nothing, so a copy is only carried when it differs from both sayings that crossed.
+    /// </summary>
+    string _toPhone = "";
+
     void Copied()
     {
         ClipBook.Entry? entry = _copies.Capture();
         if (entry == null) return;
         ClipToastText.Text = entry.Type == ClipBook.Kind.Image ? $"Картинка {entry.Hint}" : entry.Snippet;
         ShowTransient(View.ClipToast, 1.5);
+        CarryToPhone(entry);
     }
+
+    /// <summary>
+    /// A copy made here, laid on the phone's clipboard beside its own. Only words cross, since a phone's clipboard, as
+    /// its app reads it, is one string, and a picture or a handful of files has no shape to be poured into it.
+    /// </summary>
+    void CarryToPhone(ClipBook.Entry entry)
+    {
+        if (!Settings.PhoneClipboard || entry.Type != ClipBook.Kind.Text) return;
+        string given = Lines(entry.Body);
+        if (entry.Body.Length == 0 || given == _fromPhone || given == _toPhone) return;
+        if (!Settings.Bridge || !Settings.BridgeKde) return;
+        _toPhone = given;
+        _bridge.Pass(entry.Body);
+    }
+
+    /// <summary>Words as this machine's clipboard keeps them: it turns every stride of a phone's saying into the pair
+    /// Windows writes, so a copy taken back is not read as a copy made here.</summary>
+    static string Lines(string text) => text.Replace("\r\n", "\n");
 
     void SyncClip()
     {

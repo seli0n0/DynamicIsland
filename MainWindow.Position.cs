@@ -30,23 +30,18 @@ public partial class MainWindow
         ApplyLook();
     }
 
-    void PositionRow_Click(object sender, RoutedEventArgs e)
-    {
-        UpdatePosition();
-        ShowPanel(Panel.Position);
-    }
-
-    void AddAlong(int by) => SetAlong(Settings.Along + by);
-
     void SetAlong(int px)
     {
-        int limit = Placement.Travel(_screen, Settings.Edge);
+        int limit = AlongLimit();
         px = Math.Clamp(px, -limit, limit);
         if (px == Settings.Along) return;
         Settings.Along = px;
         Place();
-        UpdatePosition();
     }
+
+    /// How far along its edge the island can be pushed on the screen it is on now. Never nothing, since a slider
+    /// whose ends meet has nowhere to stand and reads as broken rather than as an island already at its limit.
+    int AlongLimit() => Math.Max(AlongStep, Placement.Travel(_screen, Settings.Edge));
 
     void SetPlace(ScreenEdge edge, ScreenAnchor anchor, int along, int gap, string screen)
     {
@@ -61,11 +56,13 @@ public partial class MainWindow
 
     void Edge_Click(object sender, RoutedEventArgs e) => SetEdge((ScreenEdge)StepOption([0, 1, 2, 3], (int)Settings.Edge, 1, true));
 
-    void Anchor_Click(object sender, RoutedEventArgs e) => SetAnchor((ScreenAnchor)StepOption([0, 1, 2], (int)Settings.Anchor, 1, true));
+    /// The three segments are Center, Start and End in that order, which is how the anchor is numbered too; a press
+    /// outside the row asks the segments for the next one along instead, so the row still turns on an ordinary click.
+    void Anchor_Click(object sender, RoutedEventArgs e) => SetAnchor((ScreenAnchor)Math.Clamp(AnchorSegments.PickUnderPointer(), 0, 2));
 
     void Monitor_Click(object sender, RoutedEventArgs e) => SetScreen(1);
 
-    void Along_Click(object sender, RoutedEventArgs e) => AddAlong(AlongStep);
+    void AlongSlider_Changed(object? sender, EventArgs e) => SetAlong((int)AlongSlider.Value);
 
     void WorkArea_Click(object sender, RoutedEventArgs e)
     {
@@ -180,6 +177,16 @@ public partial class MainWindow
         _ => "верху",
     };
 
+    /// The same edge named the way a caption wants it: «верх», not «верху», since the caption stands on its own
+    /// rather than finishing a sentence.
+    static string EdgeShort(ScreenEdge edge) => edge switch
+    {
+        ScreenEdge.Bottom => "Низ",
+        ScreenEdge.Left => "Левый край",
+        ScreenEdge.Right => "Правый край",
+        _ => "Верх",
+    };
+
     static string AnchorName(ScreenEdge edge, ScreenAnchor anchor) => anchor switch
     {
         ScreenAnchor.Free => "свободно",
@@ -191,15 +198,27 @@ public partial class MainWindow
         },
     };
 
+    /// Which way round the three anchors read: along a top or a bottom the island travels sideways, along a side it
+    /// travels up and down, and the segments have to say so or «слева» on a left edge means nothing.
+    static string AnchorLabels(ScreenEdge edge) =>
+        Placement.Horizontal(edge) ? "Центр|Слева|Справа" : "Центр|Сверху|Снизу";
+
     void UpdatePosition()
     {
         ScreenInfo[] all = CachedScreens();
         int at = Math.Max(0, Array.FindIndex(all, s => string.Equals(s.Name, _screen.Name, StringComparison.OrdinalIgnoreCase)));
         EdgeText.Text = EdgeName(Settings.Edge);
-        AnchorText.Text = AnchorName(Settings.Edge, Settings.Anchor);
+        PlaceText.Text = EdgeShort(Settings.Edge) + " · " + AnchorName(Settings.Edge, Settings.Anchor);
         MonitorText.Text = all.Length > 1 ? $"{at + 1}·{Math.Round(_screen.ScaleX * 100)}%" : $"{Math.Round(_screen.ScaleX * 100)}%";
         AlongText.Text = (Settings.Along > 0 ? "+" : "") + Settings.Along + " px";
-        WorkSwitch.Set(Settings.WorkArea, PositionView.IsVisible);
+        if (AnchorSegments.Labels != AnchorLabels(Settings.Edge)) AnchorSegments.Labels = AnchorLabels(Settings.Edge);
+        AnchorSegments.Set(Math.Clamp((int)Settings.Anchor, 0, 2), LookView.IsVisible);
+        int limit = AlongLimit();
+        AlongSlider.Minimum = -limit;
+        AlongSlider.Maximum = limit;
+        AlongSlider.Step = AlongStep;
+        AlongSlider.Set(Math.Clamp(Settings.Along, -limit, limit), LookView.IsVisible);
+        WorkSwitch.Set(Settings.WorkArea, LookView.IsVisible);
         DragText.Text = _moving ? "Тяните остров" : "Переместить мышью";
         DragText.Foreground = _moving ? _orange : _dim;
     }

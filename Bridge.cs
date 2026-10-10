@@ -28,10 +28,29 @@ sealed partial class Bridge
     public event Action<string>? Said;
     public event Action<string>? Laid;
     public event Action<string>? Visited;
-    public event Action<string, int>? Battery;
+    public event Action<string, int, bool>? Battery;
 
-    /// <summary>A notification the phone chose to show here, and the name of the app that sent it.</summary>
-    public event Action<string, string>? Notified;
+    /// <summary>
+    /// A notice the phone holds, and the key of one the phone has taken away. The first is raised for a notice that
+    /// has just appeared and for one the phone has changed in place; the second for the moment it stopped holding it.
+    /// </summary>
+    public event Action<Notice>? Noticed;
+    public event Action<string>? NoticeGone;
+
+    /// <summary>
+    /// A phone whose channel has ended: everything it kept here should go with it. The sign it came in under is what
+    /// numbers its notices, and the name it called itself is what the page shows and what its charge is kept under —
+    /// one phone is known by both, and a leaving that carries only one of them cannot be matched to the other.
+    /// </summary>
+    public event Action<string, string>? PhoneLeft;
+
+    /// <summary>
+    /// The phone's word about this machine's music, and this machine's music back at the phone. The first is raised for
+    /// a button the phone pressed on its own screen and for the place in the song it slid to; the second carries what
+    /// every phone is told when it asks, or when the island notices the music has moved. Both are raised away from the
+    /// UI thread, since the KDE channel is one thread of its own, and the island marshals what it does about them.
+    /// </summary>
+    public event Action<Command>? Ordered;
 
     /// <summary>
     /// A phone that asked to be trusted: the name it calls itself and the two fingerprints the owner compares. Nothing
@@ -51,6 +70,48 @@ sealed partial class Bridge
     /// where only the fingerprints could be compared.
     /// </summary>
     public sealed record Asking(string Phone, string Theirs, string Ours, string Code = "");
+
+    /// <summary>
+    /// What the phone asked the island to do with this machine's music. `What` is the island's own short word for it:
+    /// a button ("toggle", "play", "pause", "stop", "next", "previous"), or one of the three ways a song is moved
+    /// ("seek" to the moment `At` counts in seconds, "skip" across `At` of them, "volume" to the `At` part of the
+    /// loudest the endpoint will go). The phone's own words are longer and belong on its side of the channel.
+    /// </summary>
+    public sealed record Command(string What, double At = 0);
+
+    /// <summary>
+    /// The music this machine is playing, in the shape every phone is told about. `LengthMs` is negative when the song
+    /// has no end the island can see — a live stream, a radio — which is the one answer a phone's slider can be built
+    /// around; `Seekable` says whether moving the song is offered at all. `Volume` is the hundredths the machine itself
+    /// is at, so the phone's slider starts where the real one stands.
+    /// </summary>
+    public sealed record Playing(string Title, string Artist, bool IsPlaying, long PositionMs, long LengthMs,
+        bool Seekable, int Volume);
+
+    /// <summary>
+    /// A notice as the phone holds it, in the phone's own words: the app that made it, its title and its saying, the
+    /// buttons it carries, and the three promises the island could not guess — that the notice can be taken away, that
+    /// an answer can be sent back to it, and that it was already there before this channel opened. The last is why a
+    /// phone that has just reconnected hands over its whole shelf at once and the island says nothing about it.
+    /// `Id` names a notice to this island alone: two phones hold notices their apps numbered the same way, so the
+    /// phone's own sign leads it, and what comes back from the page is that whole key.
+    /// `Art` is the app's own picture, in the bytes the phone chose to send with it — a notice from an app whose
+    /// picture this island has already been given arrives with the same count over the same bytes, and the picture is
+    /// then taken from what was kept rather than sent twice.
+    /// </summary>
+    public sealed record Notice(string Id, string Phone, string App, string Title, string Text,
+        string[] Actions, string ReplyId, bool Clearable, bool Silent, long Time, byte[]? Art = null)
+    {
+        /// <summary>What the phone's own corner would have said: the app, then the title it gave.</summary>
+        public string Heading => string.Join(" · ", new[] { App, Title }.Where(s => s.Length > 0));
+
+        /// <summary>An app that hides its contents still leaves its name, so a row is never blank.</summary>
+        public string Saying => Text.Length > 0 ? Text : Title.Length > 0 ? Title : App;
+
+        /// <summary>The moment the phone put it up, as a person reads a clock.</summary>
+        public string Clock => Time <= 0 ? ""
+            : DateTimeOffset.FromUnixTimeMilliseconds(Time).LocalDateTime.ToString("HH:mm");
+    }
 
     readonly CancellationTokenSource _shutdown = new();
     Task? _faces;
@@ -84,11 +145,54 @@ sealed partial class Bridge
     /// <summary>A phone that reached the door, by whatever name it calls itself.</summary>
     public void Visit(string remote) => Visited?.Invoke(remote);
 
-    /// <summary>The battery a phone reported, in hundredths.</summary>
-    public void Report(string device, int level) => Battery?.Invoke(device, level);
+    /// <summary>The battery a phone reported, in hundredths, and whether the phone says it is on charge.</summary>
+    public void Report(string device, int level, bool charging) => Battery?.Invoke(device, level, charging);
 
-    /// <summary>A notice the phone wanted shown, and the app it came from.</summary>
-    public void Tell(string app, string title, string text) => Notified?.Invoke(string.Join(" · ", new[] { app, title }.Where(s => s.Length > 0)), text);
+    /// <summary>
+    /// A notice the phone holds, by the key this island gives it. A notice the phone already held is said again rather
+    /// than added twice, so a phone that reconnects and hands its shelf over is not a phone that doubled everything.
+    /// </summary>
+    public void Bring(Notice notice) => Noticed?.Invoke(notice);
+
+    /// <summary>The phone took a notice away; the key says which.</summary>
+    public void Took(string key) => NoticeGone?.Invoke(key);
+
+    /// <summary>The phone itself has gone off the channel, with all its notices still lying here.</summary>
+    public void Gone(string phoneId, string device) => PhoneLeft?.Invoke(phoneId, device);
+
+    /// <summary>Ask the phone again what it is holding, as the family asks the moment a channel settles.</summary>
+    public void AskNotices() => To(() => _kde?.AskNotices());
+
+    /// <summary>Take a notice off the phone's own screen.</summary>
+    public void DismissNotice(string key) => To(() => _kde?.Dismiss(key));
+
+    /// <summary>Press one of the buttons the phone put under its notice.</summary>
+    public void PressNotice(string key, string action) => To(() => _kde?.Press(key, action));
+
+    /// <summary>Answer a notice with words the island holds; the phone decides whether a notice can be answered.</summary>
+    public void AnswerNotice(string key, string message) => To(() => _kde?.Reply(key, message));
+
+    /// <summary>
+    /// Say something on the phone's own screen, as the island says it here. Nothing is shown for it when the phone has
+    /// not switched on the plugin that receives notices, which is off until its owner turns it on.
+    /// </summary>
+    public void Announce(string app, string text) => To(() => _kde?.Announce(app, text));
+
+    /// <summary>Give this machine's copied words to every phone standing on the channel.</summary>
+    public void Pass(string text) => To(() => _kde?.Pass(text));
+
+    /// <summary>The phone said something about this machine's music; the island decides what it means.</summary>
+    public void Order(Command order) => Ordered?.Invoke(order);
+
+    /// <summary>Say this machine's music to every phone that stands talking, as the island notices it has moved.</summary>
+    public void Mirror(Playing state) => To(() => _kde?.Mirror(state));
+
+    /// <summary>The page hands a word inward; a face that is not open takes it nowhere and says nothing of it.</summary>
+    static void To(Action way)
+    {
+        try { way(); }
+        catch (Exception ex) { App.Log(ex); }
+    }
 
     /// <summary>A phone that wants to be trusted, and the fingerprints to compare before it is.</summary>
     public void Ask(Asking asking) => Wanted?.Invoke(asking);

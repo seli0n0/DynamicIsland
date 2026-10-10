@@ -14,7 +14,7 @@ public partial class MainWindow
     const double BubbleGap = 7;
     const double BubbleTuckFactor = 1.6;
     const double BubbleVisibleSplit = 0.01, BubbleClickableSplit = 0.75;
-    const double TimerBubbleWidth = 78, ShelfBubbleWidth = 54;
+    const double RecordBubbleWidth = 78, TimerBubbleWidth = 78, ShelfBubbleWidth = 54;
     const double BubbleOverlap = 11;
     const double ShelfBubblePadding = 13, ShelfBubblePaddingWithTimer = 10;
     const double MinViewScale = 0.5, MaxViewScale = 1.15;
@@ -23,12 +23,13 @@ public partial class MainWindow
     const double CacheScaleTolerance = 0.001;
     const double ShadowReach = 100;
     static readonly TimeSpan GlassTime = TimeSpan.FromMilliseconds(300);
+    static readonly TimeSpan FrostTime = TimeSpan.FromMilliseconds(120);
 
     readonly Spring _width = new(34), _height = new(34), _radius = new(17);
     readonly Spring _scale = new(1, 320, 20), _offsetY = new(0, 260, 26), _leanX = new(0);
     readonly Spring _userScale = new(Settings.Scale / 100.0, 240, 26), _topGap = new(Settings.Gap, 240, 26);
     readonly Spring _bubbleSplit = new(0), _bubbleScale = new(1, 320, 20);
-    readonly Spring _bubbleTimer = new(0, 260, 24), _bubbleShelf = new(0, 260, 24), _shelfBubbleWidth = new(ShelfBubbleWidth, 260, 24);
+    readonly Spring _bubbleRecord = new(0, 260, 24), _bubbleTimer = new(0, 260, 24), _bubbleShelf = new(0, 260, 24), _shelfBubbleWidth = new(ShelfBubbleWidth, 260, 24);
     readonly BlurEffect _motionBlur = new() { Radius = 0, RenderingBias = RenderingBias.Performance };
     readonly FrameLoop _shapeLoop;
     readonly Glass _glass;
@@ -62,18 +63,21 @@ public partial class MainWindow
 
     void UpdateBubbleTargets(bool compact)
     {
+        bool record = _obs.Recording && _view != View.Record;
         bool timer = _countdown.IsActive && _view != View.Timer, shelf = _shelf.Items.Count > 0;
-        bool split = compact && (timer || shelf);
+        bool split = compact && (record || timer || shelf);
         _bubbleSplit.Target = split ? 1 : 0;
         if (compact) _bubbleSplit.Tune(140, 17);
         else _bubbleSplit.Tune(300, 30);
         if (!split) return;
 
+        _bubbleRecord.Target = record ? 1 : 0;
         _bubbleTimer.Target = timer ? 1 : 0;
         _bubbleShelf.Target = shelf ? 1 : 0;
         if (shelf) _shelfBubbleWidth.Target = MeasureShelfBubble();
         if (_bubbleSplit.Value >= BarelyVisible) return;
 
+        _bubbleRecord.Snap(_bubbleRecord.Target);
         _bubbleTimer.Snap(_bubbleTimer.Target);
         _bubbleShelf.Snap(_bubbleShelf.Target);
         _shelfBubbleWidth.Snap(_shelfBubbleWidth.Target);
@@ -132,6 +136,7 @@ public partial class MainWindow
         if (_morphing) FitViews(w, h);
         ApplyMotionBlur();
         ApplyShelfScroll();
+        foreach (PinnedPage page in _pages.Values) page.Apply();
         StretchVolumeBar();
 
         IslandScale.ScaleX = IslandScale.ScaleY = scale;
@@ -145,7 +150,7 @@ public partial class MainWindow
 
         PlaceCoverAndBars(pill, dpi);
         PlaceBubble(pill, r, scale);
-        CutGlass(dpi);
+        FitGlass(dpi);
     }
 
     static Geometry Around(Geometry hole)
@@ -156,12 +161,12 @@ public partial class MainWindow
         return around;
     }
 
-    void CutGlass(double dpi)
+    void FitGlass(double dpi)
     {
         if (!_glass.IsOn || Body.TransformToAncestor(this) is not Transform place) return;
         Matrix toPixels = place.Value;
         toPixels.Scale(dpi, dpi);
-        _glass.Cut(Body.PillInside, Body.BubbleInside, toPixels);
+        _glass.Fit(Body.PillInside, Body.BubbleInside, toPixels);
     }
 
     void SyncGlass(bool animate)
@@ -171,7 +176,7 @@ public partial class MainWindow
             _glass.Show();
             Reshape();
         }
-        Body.Thin(Settings.Glass, animate ? GlassTime : TimeSpan.Zero, HideGlassOnceCovered);
+        Body.Thin(Settings.Glass ? Settings.Frost : 0, animate ? GlassTime : TimeSpan.Zero, HideGlassOnceCovered);
     }
 
     void HideGlassOnceCovered()
@@ -198,14 +203,17 @@ public partial class MainWindow
     void PlaceBubble(Rect pill, double r, double scale)
     {
         double split = _bubbleSplit.Value, bubble = Math.Max(_bubbleScale.Value, MinScale);
-        double timer = Math.Max(_bubbleTimer.Value, 0), shelf = Math.Max(_bubbleShelf.Value, 0);
-        double wide = Math.Max(TimerBubbleWidth * timer + _shelfBubbleWidth.Value * shelf - BubbleOverlap * timer * shelf, Bubble.Height);
+        double record = Math.Max(_bubbleRecord.Value, 0), timer = Math.Max(_bubbleTimer.Value, 0), shelf = Math.Max(_bubbleShelf.Value, 0);
+        double seams = record * timer + timer * shelf + record * shelf * (1 - Math.Clamp(timer, 0, 1));
+        double wide = Math.Max(RecordBubbleWidth * record + TimerBubbleWidth * timer + _shelfBubbleWidth.Value * shelf - BubbleOverlap * seams, Bubble.Height);
         bool apart = split > BubbleVisibleSplit;
         Bubble.SetVisible(apart);
         Bubble.Width = wide;
+        BubbleRecord.Opacity = Math.Clamp(record * 2 - 1, 0, 1);
         BubbleTimer.Opacity = Math.Clamp(timer * 2 - 1, 0, 1);
+        BubbleTimer.Margin = new Thickness((RecordBubbleWidth - BubbleOverlap) * record, 0, 0, 0);
         BubbleShelf.Opacity = Math.Clamp(shelf * 2 - 1, 0, 1);
-        BubbleShelf.Margin = new Thickness(0, 0, ShelfBubblePadding + (ShelfBubblePaddingWithTimer - ShelfBubblePadding) * Math.Clamp(timer, 0, 1), 0);
+        BubbleShelf.Margin = new Thickness(0, 0, ShelfBubblePadding + (ShelfBubblePaddingWithTimer - ShelfBubblePadding) * Math.Clamp(Math.Max(timer, record), 0, 1), 0);
         double tuck = Math.Max(r - Bubble.Height / 2, 0) * BubbleTuckFactor * (1 - Math.Clamp(split, 0, 1)) * scale;
         BubbleMove.X = (pill.Width * scale - wide) / 2 + (BubbleGap + wide) * split - tuck;
         BubbleScale.ScaleX = BubbleScale.ScaleY = bubble;

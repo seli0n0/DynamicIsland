@@ -28,12 +28,20 @@ enum Hover
     Flow,
 }
 
+enum SeekHover
+{
+    Magnifier,
+    Lift,
+    Wave,
+}
+
 static class Settings
 {
     const string Key = @"Software\DynamicIsland";
     public const int MaxGap = 200;
     const int MinScale = 85, MaxScale = 130, MaxAlong = 4096, MinFontScale = 80, MaxFontScale = 160, MaxPulse = 3;
     const int DefaultScale = 100, DefaultGap = 8, DefaultPulse = 2;
+    const int MinFrost = 10, MaxFrost = 100, DefaultFrost = 60;
 
     static bool _lyrics = ReadSwitch(nameof(Lyrics)), _lyricEffects = ReadSwitch(nameof(LyricEffects));
     static bool _network = ReadSwitch(nameof(Network)), _hideFullscreen = ReadSwitch(nameof(HideFullscreen));
@@ -41,12 +49,16 @@ static class Settings
     static bool _timerPauses = ReadSwitch(nameof(TimerPauses)), _workArea = ReadSwitch(nameof(WorkArea));
     static bool _mic = ReadSwitch(nameof(Mic));
     static bool _notices = ReadSwitch(nameof(Notices), false);
+    static bool _phoneNotices = ReadSwitch(nameof(PhoneNotices));
+    static bool _phoneAlerts = ReadSwitch(nameof(PhoneAlerts)), _phoneTimer = ReadSwitch(nameof(PhoneTimer));
+    static bool _phoneClipboard = ReadSwitch(nameof(PhoneClipboard));
     static bool _dots = ReadSwitch(nameof(Dots), false);
     static bool _lineBar = ReadSwitch(nameof(LineBar));
     static bool _glass = ReadSwitch(nameof(Glass), false);
     static Backdrop _backdrop = (Backdrop)Math.Clamp(Read(nameof(Backdrop), 0), 0, (int)Backdrop.MatrixAndStars);
     static LyricChange _lyricChange = (LyricChange)Math.Clamp(Read(nameof(LyricChange), (int)LyricChange.Wave), 0, (int)LyricChange.Drum);
     static Hover _hover = (Hover)Math.Clamp(Read(nameof(Hover), 0), 0, (int)Hover.Flow);
+    static SeekHover _seekHover = (SeekHover)Math.Clamp(Read(nameof(SeekHover), 0), 0, (int)SeekHover.Wave);
     static bool _bridge = ReadSwitch(nameof(Bridge), false), _bridgeKde = ReadSwitch(nameof(BridgeKde), false);
     static string _bridgeKey = Read(nameof(BridgeKey), "");
     static string _bridgePhoneId = Read(nameof(BridgePhoneId), "");
@@ -58,6 +70,7 @@ static class Settings
     static int _along = Math.Clamp(Read(nameof(Along), 0), -MaxAlong, MaxAlong);
     static int _fontScale = Math.Clamp(Read(nameof(FontScale), 100), MinFontScale, MaxFontScale);
     static int _pulse = Math.Clamp(Read(nameof(Pulse), DefaultPulse), 0, MaxPulse);
+    static int _frost = Math.Clamp(Read(nameof(Frost), DefaultFrost), MinFrost, MaxFrost);
     static string _monitor = Read(nameof(Monitor), "");
     static string _font = Read(nameof(Font), "");
 
@@ -106,6 +119,14 @@ static class Settings
         set => Write(nameof(Glass), _glass = value);
     }
 
+    /// <summary>How far the glass lets the frosted blur behind the island stand in its own body: at its least the body
+    /// stays nearly solid and only a hint of the glass shows, at its most the blur carries the look of the island.</summary>
+    public static int Frost
+    {
+        get => _frost;
+        set => Write(nameof(Frost), _frost = Math.Clamp(value, MinFrost, MaxFrost));
+    }
+
     public static Backdrop Backdrop
     {
         get => _backdrop;
@@ -122,6 +143,12 @@ static class Settings
     {
         get => _hover;
         set => Write(nameof(Hover), (int)(_hover = value));
+    }
+
+    public static SeekHover SeekHover
+    {
+        get => _seekHover;
+        set => Write(nameof(SeekHover), (int)(_seekHover = value));
     }
 
     public static bool Lyrics
@@ -170,6 +197,43 @@ static class Settings
     {
         get => _notices;
         set => Write(nameof(Notices), _notices = value);
+    }
+
+    /// <summary>
+    /// Whether the island takes what the phone is holding: the notices it shows its owner, not only the ones that
+    /// arrive while the island happens to be watching. Turning it off leaves the phone's screen its own.
+    /// </summary>
+    public static bool PhoneNotices
+    {
+        get => _phoneNotices;
+        set => Write(nameof(PhoneNotices), _phoneNotices = value);
+    }
+
+    /// <summary>
+    /// Whether a notice Windows showed here is also shown on the phone. Reading the phone's notices and writing onto
+    /// its screen are opposite directions of one channel, and an owner may want either without the other.
+    /// </summary>
+    public static bool PhoneAlerts
+    {
+        get => _phoneAlerts;
+        set => Write(nameof(PhoneAlerts), _phoneAlerts = value);
+    }
+
+    /// <summary>Whether the end of a timer is said on the phone, for a person who has left the machine it ran on.</summary>
+    public static bool PhoneTimer
+    {
+        get => _phoneTimer;
+        set => Write(nameof(PhoneTimer), _phoneTimer = value);
+    }
+
+    /// <summary>
+    /// Whether words copied here are laid on the phone's clipboard too. The phone answers its own copy back to the
+    /// island whatever this says; this is only the half that goes outward.
+    /// </summary>
+    public static bool PhoneClipboard
+    {
+        get => _phoneClipboard;
+        set => Write(nameof(PhoneClipboard), _phoneClipboard = value);
     }
 
     public static bool HideFullscreen
