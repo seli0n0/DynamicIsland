@@ -22,6 +22,24 @@ enum LyricChange
     Drum,
 }
 
+/// <summary>
+/// Which places the island asks for a song's words. The bits stand in the order their answers are believed, and the
+/// order is kept in step with <c>LyricsService.Sources</c>; a song whose name is known to several of them is answered
+/// by the first of them that has subtitles of the right length.
+/// </summary>
+[Flags]
+enum LyricSource
+{
+    Lrclib = 1,
+    Deezer = 2,
+    NetEase = 4,
+    QqMusic = 8,
+    Kugou = 16,
+    Paxsenix = 32,
+    Usual = Lrclib | Deezer | NetEase | QqMusic | Kugou,
+    All = Usual | Paxsenix,
+}
+
 enum Hover
 {
     Disc,
@@ -61,6 +79,7 @@ static class Settings
     static bool _glass = ReadSwitch(nameof(Glass), false);
     static Backdrop _backdrop = (Backdrop)Math.Clamp(Read(nameof(Backdrop), 0), 0, (int)Backdrop.MatrixAndStars);
     static LyricChange _lyricChange = (LyricChange)Math.Clamp(Read(nameof(LyricChange), (int)LyricChange.Wave), 0, (int)LyricChange.Drum);
+    static LyricSource _lyricSources = Known((LyricSource)Read(nameof(LyricSources), (int)LyricSource.Usual));
     static Hover _hover = (Hover)Math.Clamp(Read(nameof(Hover), 0), 0, (int)Hover.Flow);
     static SeekHover _seekHover = (SeekHover)Math.Clamp(Read(nameof(SeekHover), 0), 0, (int)SeekHover.Wave);
     static bool _bridge = ReadSwitch(nameof(Bridge), false), _bridgeKde = ReadSwitch(nameof(BridgeKde), false);
@@ -141,6 +160,12 @@ static class Settings
     {
         get => _lyricChange;
         set => Write(nameof(LyricChange), (int)(_lyricChange = value));
+    }
+
+    public static LyricSource LyricSources
+    {
+        get => _lyricSources;
+        set => Write(nameof(LyricSources), (int)(_lyricSources = Known(value)));
     }
 
     public static Hover Hover
@@ -369,6 +394,8 @@ static class Settings
             ? new Place(name, region, lat, lon) : null;
 
     static string Coordinate(double degrees) => degrees.ToString("R", CultureInfo.InvariantCulture);
+
+    static LyricSource Known(LyricSource sources) => (sources & LyricSource.All) == 0 ? LyricSource.Usual : sources & LyricSource.All;
 
     static bool ReadSwitch(string name, bool fallback = true) => Read(name, fallback ? 1 : 0) != 0;
 

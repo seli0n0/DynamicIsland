@@ -5,7 +5,8 @@ using System.Text.RegularExpressions;
 namespace DynamicIsland;
 
 /// lrclib indexes mostly Western releases, so a Russian track often isn't there at all. NetEase Cloud Music keeps
-/// user-made subtitles for the Russian catalogue and answers from a Russian provider, so it serves what lrclib lacks.
+/// user-made subtitles for the Russian catalogue and answers from a Russian provider, so the island asks it beside
+/// the others rather than after them: its answer stands third in the order the words are believed in.
 sealed partial class LyricsService
 {
     const int NetEaseProbes = 3;
@@ -27,7 +28,7 @@ sealed partial class LyricsService
         foreach (string term in Searches(title, artist))
         {
             if (cancel.IsCancellationRequested) break;
-            using JsonDocument? json = await GetAsync(NetEaseHttp, NetEaseSearch + Uri.EscapeDataString(term), cancel);
+            using JsonDocument? json = await Ask(NetEaseSearch + Uri.EscapeDataString(term), cancel);
             if (json == null || !json.RootElement.TryGetProperty("result", out JsonElement result)
                 || !result.TryGetProperty("songs", out JsonElement songs) || songs.ValueKind != JsonValueKind.Array) continue;
 
@@ -47,9 +48,28 @@ sealed partial class LyricsService
 
     static async Task<Candidate?> LyricAsync(Hit hit, CancellationToken cancel)
     {
-        using JsonDocument? json = await GetAsync(NetEaseHttp, NetEaseLyric + hit.Id, cancel);
+        using JsonDocument? json = await Ask(NetEaseLyric + hit.Id, cancel);
         if (json == null || !json.RootElement.TryGetProperty("lrc", out JsonElement lrc)) return null;
         return Frame(hit.Duration, Array.FindAll(Parse(Text(lrc, "lyric")), line => !Credit.IsMatch(line.Text)));
+    }
+
+    /// NetEase wants a browser's face and its own cookie rather than the island's, and answers an anonymous visitor
+    /// with an empty song list, so this one place asks over its own client.
+    static async Task<JsonDocument?> Ask(string url, CancellationToken cancel)
+    {
+        for (int attempt = 0; attempt < Attempts && !cancel.IsCancellationRequested; attempt++)
+        {
+            try { return JsonDocument.Parse(await NetEaseHttp.GetByteArrayAsync(url, cancel)); }
+            catch (HttpRequestException)
+            {
+                if (attempt + 1 < Attempts) await Task.Delay(RetryDelayMs, cancel);
+            }
+            catch (Exception ex) when (ex is OperationCanceledException or JsonException)
+            {
+                return null;
+            }
+        }
+        return null;
     }
 
     static IEnumerable<string> Searches(string title, string artist)
@@ -89,8 +109,15 @@ sealed partial class LyricsService
 
     static bool Starts(string have, string want) => have.Length > 0 && want.Length > 0 && have.StartsWith(want, StringComparison.Ordinal);
 
+    /// A field read as words: what is written there, and what is counted there, since a catalogue gives a song's number
+    /// as readily as its name.
     static string Text(JsonElement item, string name) =>
-        item.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.String ? value.GetString() ?? "" : "";
+        item.TryGetProperty(name, out JsonElement value) ? value.ValueKind switch
+        {
+            JsonValueKind.String => value.GetString() ?? "",
+            JsonValueKind.Number => value.GetRawText(),
+            _ => "",
+        } : "";
 
     static double Number(JsonElement item, string name) =>
         item.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.Number ? value.GetDouble() : 0;

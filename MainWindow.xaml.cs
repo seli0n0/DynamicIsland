@@ -13,9 +13,9 @@ namespace DynamicIsland;
 
 public partial class MainWindow : Window
 {
-    enum View { Idle, Media, Timer, Record, Volume, Charge, Focus, Toast, Notice, PairAsk, MediaBig, IdleBig, TimerBig, TimerSet, RecordBig, RecordSet, Menu, Settings, Look, Shelf, Weather, Place, Phone, PhoneSet, ClipToast, Loading }
+    enum View { Idle, Media, Timer, Record, Volume, Charge, Focus, Toast, Notice, PairAsk, MediaBig, IdleBig, TimerBig, TimerSet, RecordBig, RecordSet, Menu, Settings, Sources, Look, Shelf, Weather, Place, Phone, PhoneSet, ClipToast, Loading }
 
-    enum Panel { None, Player, Timer, TimerSet, Record, Menu, Settings, Look, Shelf, Weather, Place, Phone, PhoneSet }
+    enum Panel { None, Player, Timer, TimerSet, Record, Menu, Settings, Sources, Look, Shelf, Weather, Place, Phone, PhoneSet }
 
     readonly record struct PillShape(double Width, double Height, double Radius);
 
@@ -39,6 +39,7 @@ public partial class MainWindow : Window
         [View.RecordSet] = new(320, 92, 40),
         [View.Menu] = new(300, 133, 34),
         [View.Settings] = new(320, 479, 34),
+        [View.Sources] = new(320, 220, 34),
         [View.Look] = new(352, 340, 34),
         [View.Shelf] = new(380, 480, 34),
         [View.Weather] = new(340, 190, 34),
@@ -72,6 +73,10 @@ public partial class MainWindow : Window
 
     /// The pages the weather page opens under itself: a row of them is reached from weather and returns to it.
     static readonly View[] WeatherPages = [View.Place];
+
+    /// The pages the settings page opens under itself beside the ones the menu lists too: the page of lyric sources
+    /// is reached from settings and returns there, not to the menu.
+    static readonly View[] SettingsPages = [View.Sources];
 
     /// The most rows a page of the pinned kind may take before the rest has to be scrolled to: the look page holds the
     /// placement and the faces as sections that open under it, the smartphone page its outward doors and its code, and
@@ -157,6 +162,7 @@ public partial class MainWindow : Window
             [View.RecordSet] = RecordSetView,
             [View.Menu] = MenuView,
             [View.Settings] = SettingsView,
+            [View.Sources] = SourcesView,
             [View.Look] = LookView,
             [View.Shelf] = ShelfView,
             [View.Weather] = WeatherView,
@@ -211,7 +217,9 @@ public partial class MainWindow : Window
         _media = new MediaService(Dispatcher);
         _media.Changed += OnMediaChanged;
         _media.Changed += MirrorMusic; // a phone's media page listens rather than asks, so every move is said outward
-        _lyrics.Changed += OnLyricsChanged;
+        // Every place that holds words answers on its own clock, so an answer is carried onto the island's own thread
+        // before its lines are read; two of them coming back in the same moment would otherwise touch the song twice.
+        _lyrics.Changed += () => Dispatcher.InvokeAsync(OnLyricsChanged);
         _network = new NetworkService(Dispatcher);
         _network.Changed += OnNetworkChanged;
         _mic = new MicService(Dispatcher);
@@ -272,7 +280,7 @@ public partial class MainWindow : Window
     {
         foreach ((View view, FrameworkElement body) in new (View, FrameworkElement)[]
         {
-            (View.Menu, MenuBody), (View.Settings, SettingsBody), (View.Weather, WeatherBody),
+            (View.Menu, MenuBody), (View.Settings, SettingsBody), (View.Sources, SourceBody), (View.Weather, WeatherBody),
         }) FitPage(view, body);
         foreach (PinnedPage page in _pages.Values) page.Fit();
     }
@@ -444,6 +452,7 @@ public partial class MainWindow : Window
         {
             Panel.Menu => View.Menu,
             Panel.Settings => View.Settings,
+            Panel.Sources => View.Sources,
             Panel.Look => View.Look,
             Panel.PhoneSet => View.PhoneSet,
             Panel.Shelf => View.Shelf,
@@ -521,18 +530,19 @@ public partial class MainWindow : Window
 
     static int MenuDirection(View from, View to) => IsPageOf(from, to) ? 1 : IsPageOf(to, from) ? -1 : 0;
 
-    /// Whether one page opens the other: the menu and the settings page hold the same listed rows, and the weather
-    /// page opens only the place page it comes back from.
+    /// Whether one page opens the other: the menu and the settings page hold the same listed rows, the settings page
+    /// opens the page of sources under itself, and the weather page opens only the place page it comes back from.
     static bool IsPageOf(View parent, View page) =>
         parent == View.Weather ? WeatherPages.Contains(page)
-        : (parent == View.Menu || parent == View.Settings) && MenuPages.Contains(page);
+        : parent == View.Settings && SettingsPages.Contains(page)
+        || (parent == View.Menu || parent == View.Settings) && MenuPages.Contains(page);
 
     PillShape ShapeOf(View view) => view switch
     {
         View.Media => PillShapes[view] with { Width = _compactMediaWidth },
         View.MediaBig when _playerHasLyricRoom => PillShapes[view] with { Height = PlayerHeight + PlayerLyricsHeight },
         View.RecordSet => PillShapes[view] with { Width = RecordSetView.Width },
-        View.Menu or View.Settings or View.Look or View.Weather or View.Place or View.Phone or View.PhoneSet
+        View.Menu or View.Settings or View.Sources or View.Look or View.Weather or View.Place or View.Phone or View.PhoneSet
             => PillShapes[view] with { Height = _views[view].Height },
         _ => PillShapes[view],
     };

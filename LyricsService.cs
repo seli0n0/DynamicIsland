@@ -11,7 +11,12 @@ sealed partial class LyricsService
 
     sealed record Candidate(double Duration, double End, Line[] Lines);
 
+    /// One place the island asks for a song's words. Each answers on its own clock, so all of them are asked at once
+    /// and the words show as soon as the first one in order has a version of the track's length.
+    delegate Task<Candidate[]> Source(string title, string artist, CancellationToken cancel);
+
     const string LrcLibUrl = "https://lrclib.net/api/search?";
+    const string OwnAgent = "DynamicIsland/1.0";
     const string TitleSeparator = " - ";
     const double DurationTolerance = 4;
     const double EndSlack = 1;
@@ -21,13 +26,18 @@ sealed partial class LyricsService
     const double MinStretch = 0.5, MaxStretch = 2;
     const int Attempts = 2;
     const int RetryDelayMs = 1500;
-    const int RequestSeconds = 5;
-    const int LrcLibBudget = 6;
+    const int RequestSeconds = 7;
     const int LookupBudget = 24;
     const int MaxMinutes = 24 * 60;
 
     static readonly Line[] None = [];
     static readonly HttpClient Http = CreateClient();
+
+    /// The places asked for a song's words, in the order their words are believed, matching <see cref="LyricSource"/>
+    /// bit for bit: LRCLIB first, because its subtitles are made for the exact track, and the catalogues after it,
+    /// which are searched by name and so can answer with a different recording.
+    static readonly Source[] Sources = [FromLrclib, FromDeezer, NetEaseAsync, FromQqMusic, FromKugou, FromPaxsenix];
+
     const string Rework = @"remix|rmx|sped\s*up|speed\s*up|slowed|reverb|nightcore|hardstyle|phonk|bootleg|mashup|ремикс";
     static readonly Regex Punctuation = new(@"[·、，。！？;:«»“”()\[\]~`*_^=+/'\\]", RegexOptions.Compiled);
     static readonly Regex Spaces = new(@"\s+", RegexOptions.Compiled);
@@ -43,7 +53,7 @@ sealed partial class LyricsService
     static readonly Regex Stamped = new(@"^((?:\[\d+:\d+(?:\.\d+)?\])+)(.*)$", RegexOptions.Compiled);
     static readonly Regex Stamp = new(@"\[(\d+):(\d+(?:\.\d+)?)\]", RegexOptions.Compiled);
 
-    Candidate[] _candidates = [];
+    Candidate[][] _found = [];
     Line[] _stretched = None;
     double _stretchedFor;
     bool _reworked;
@@ -54,18 +64,18 @@ sealed partial class LyricsService
 
     public bool IsPending { get; private set; }
 
-    public void Track(string title, string artist)
+    public void Track(string title, string artist, LyricSource sources)
     {
-        string key = title + "\n" + artist;
+        string key = title + "\n" + artist + "\n" + sources;
         if (key == _trackKey) return;
 
         _trackKey = key;
-        _candidates = [];
+        _found = [];
         _stretchedFor = 0;
         _reworked = Reworked.IsMatch(title);
         int version = ++_requestVersion;
         IsPending = title.Length > 0;
-        if (IsPending) _ = LoadAsync(title, artist, version);
+        if (IsPending) _ = LoadAsync(title, artist, sources, version);
     }
 
     public Line[] LinesFor(TimeSpan duration)
@@ -75,13 +85,20 @@ sealed partial class LyricsService
 
         Line[] best = None;
         double bestGap = DurationTolerance;
-        foreach (Candidate candidate in _candidates)
+        foreach (Candidate[] source in _found)
         {
-            if (candidate.End > seconds + EndSlack) continue;
-            double gap = Math.Abs(candidate.Duration - seconds);
-            if (gap > bestGap || (gap == bestGap && best.Length > 0)) continue;
-            best = candidate.Lines;
-            bestGap = gap;
+            foreach (Candidate candidate in source)
+            {
+                if (candidate.End > seconds + EndSlack) continue;
+                double gap = Math.Abs(candidate.Duration - seconds);
+                if (gap > bestGap || (gap == bestGap && best.Length > 0)) continue;
+                best = candidate.Lines;
+                bestGap = gap;
+            }
+
+            // A place that has words for this length settles the line: the ones still answering are later in order,
+            // and a later answer is only wanted when the earlier ones have nothing to say.
+            if (best.Length > 0) break;
         }
         if (best.Length > 0 || !_reworked) return best;
 
@@ -95,7 +112,8 @@ sealed partial class LyricsService
 
     public TimeSpan UsualLength => _reworked ? TimeSpan.Zero : TimeSpan.FromSeconds(UsualCandidate()?.Duration ?? 0);
 
-    Candidate? UsualCandidate() => _candidates.Where(c => c.Duration >= MinUsualDuration && c.End <= c.Duration + EndSlack)
+    Candidate? UsualCandidate() => _found.SelectMany(source => source)
+        .Where(c => c.Duration >= MinUsualDuration && c.End <= c.Duration + EndSlack)
         .GroupBy(c => Math.Round(c.Duration)).OrderByDescending(g => g.Count()).FirstOrDefault()?.First();
 
     Line[] Stretch(double seconds)
@@ -108,46 +126,63 @@ sealed partial class LyricsService
         return Array.ConvertAll(usual.Lines, line => new Line(line.Time * ratio, line.Text));
     }
 
-    async Task LoadAsync(string title, string artist, int version)
+    async Task LoadAsync(string title, string artist, LyricSource sources, int version)
     {
-        Candidate[] found = [];
-        try { found = await Task.Run(() => FetchAsync(title, artist)); }
-        catch { }
+        // One clock for every place asked: a song that ends mid-search must not keep a wheel turning in a source
+        // whose answer will never be shown.
+        using var budget = new CancellationTokenSource(TimeSpan.FromSeconds(LookupBudget));
+        var found = new Candidate[Sources.Length][];
+        Array.Fill(found, []);
+        await Task.WhenAll(Sources.Select((source, rank) => sources.HasFlag((LyricSource)(1 << rank))
+            ? LoadFromAsync(source, rank, title, artist, version, found, budget.Token) : Task.CompletedTask));
         if (version != _requestVersion) return;
 
-        _candidates = found;
-        _stretchedFor = 0;
         IsPending = false;
         Changed?.Invoke();
     }
 
-    static async Task<Candidate[]> FetchAsync(string title, string artist)
+    async Task LoadFromAsync(Source source, int rank, string title, string artist, int version, Candidate[][] found, CancellationToken cancel)
     {
-        using var budget = new CancellationTokenSource(TimeSpan.FromSeconds(LookupBudget));
-        CancellationToken cancel = budget.Token;
-        using var lrcLib = CancellationTokenSource.CreateLinkedTokenSource(cancel);
-        lrcLib.CancelAfter(TimeSpan.FromSeconds(LrcLibBudget));
+        try { found[rank] = await Task.Run(() => source(title, artist, cancel), cancel); }
+        catch (OperationCanceledException) { return; }
+        catch { }
+        if (version != _requestVersion || found[rank].Length == 0) return;
 
+        _found = found;
+        _stretchedFor = 0;
+        // The first place to answer shows its words at once; the ones still answering can only take the line when
+        // they stand earlier in order, which is what the ranking in <see cref="LinesFor"/> knows.
+        Changed?.Invoke();
+    }
+
+    static async Task<Candidate[]> FromLrclib(string title, string artist, CancellationToken cancel)
+    {
         foreach (string query in Queries(title, artist))
         {
-            using JsonDocument? json = await GetAsync(Http, LrcLibUrl + query, lrcLib.Token);
+            using JsonDocument? json = await AskAsync(LrcLibUrl + query, cancel: cancel);
             if (json != null && json.RootElement.ValueKind == JsonValueKind.Array)
             {
                 Candidate[] found = json.RootElement.EnumerateArray().Select(ToCandidate).OfType<Candidate>().ToArray();
                 if (found.Length > 0) return found;
             }
-            if (lrcLib.IsCancellationRequested) break;
+            if (cancel.IsCancellationRequested) break;
         }
-        return await NetEaseAsync(title, artist, cancel);
+        return [];
     }
 
     static Candidate? ToCandidate(JsonElement item)
     {
         if (!item.TryGetProperty("duration", out JsonElement duration) || duration.ValueKind != JsonValueKind.Number) return null;
-        return Frame(duration.GetDouble(), Text(item, "syncedLyrics"));
+        return Timed(Text(item, "syncedLyrics"), duration.GetDouble());
     }
 
-    static Candidate? Frame(double duration, string lrc) => Frame(duration, Parse(lrc));
+    /// Words with their stamps turned into lines, kept only while they fit the length the catalogue gives the song.
+    static Candidate? Timed(string lrc, double duration)
+    {
+        Line[] lines = Parse(lrc);
+        if (lines.Length == 0) return null;
+        return new Candidate(duration, lines.LastOrDefault(line => line.Text.Length > 0).Time.TotalSeconds, lines);
+    }
 
     static Candidate? Frame(double duration, Line[] lines)
     {
@@ -155,15 +190,33 @@ sealed partial class LyricsService
         return new Candidate(duration, lines.LastOrDefault(line => line.Text.Length > 0).Time.TotalSeconds, lines);
     }
 
-    static async Task<JsonDocument?> GetAsync(HttpClient http, string url, CancellationToken cancel)
+    /// Ask one of the catalogues for JSON. A named site comes with the headers a browser would bring, because the
+    /// Chinese services answer a bare request with an empty page; a request without one says who it is.
+    static async Task<JsonDocument?> AskAsync(string url, string? site = null, string? pass = null, string? body = null,
+        CancellationToken cancel = default)
     {
         for (int attempt = 0; attempt < Attempts && !cancel.IsCancellationRequested; attempt++)
         {
             try
             {
-                // The stream API leaves the body read outside HttpClient.Timeout, so a connection that answers the
-                // headers and then stalls — what a filtered path does — would wait here forever.
-                return JsonDocument.Parse(await http.GetByteArrayAsync(url, cancel));
+                using var request = new HttpRequestMessage(body == null ? HttpMethod.Get : HttpMethod.Post, url);
+                if (body != null) request.Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
+                if (pass != null) request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", pass);
+                if (site != null)
+                {
+                    request.Headers.Referrer = new Uri(site);
+                    request.Headers.UserAgent.ParseAdd(Browser);
+                }
+                else
+                {
+                    request.Headers.UserAgent.ParseAdd(OwnAgent);
+                }
+
+                // The whole body is read inside the client's own timeout: a path that answers the headers and then
+                // goes quiet — what a filtered connection does — must not be able to wait here forever.
+                using HttpResponseMessage response = await Http.SendAsync(request, HttpCompletionOption.ResponseContentRead, cancel);
+                response.EnsureSuccessStatusCode();
+                return JsonDocument.Parse(await response.Content.ReadAsByteArrayAsync(cancel));
             }
             catch (HttpRequestException)
             {
@@ -179,8 +232,7 @@ sealed partial class LyricsService
 
     static IEnumerable<string> Queries(string title, string artist)
     {
-        string song = Slim(title), by = SlimBy(artist);
-        if (song.Length == 0) song = title;
+        (string song, string by) = Cleaned(title, artist);
 
         if (by.Length > 0) yield return $"track_name={Uri.EscapeDataString(song)}&artist_name={Uri.EscapeDataString(by)}";
 
@@ -194,6 +246,14 @@ sealed partial class LyricsService
         {
             yield return "q=" + Uri.EscapeDataString(by.Length > 0 ? by + " " + song : song);
         }
+    }
+
+    /// The name and the artist as they stand once the brackets of a release title and the tail of a remix are gone:
+    /// every catalogue is searched, and every hit judged, by these two words.
+    static (string Song, string By) Cleaned(string title, string artist)
+    {
+        string song = Slim(title);
+        return (song.Length == 0 ? title : song, SlimBy(artist));
     }
 
     static string Slim(string text) => Space(ReworkTail.Replace(Pipes.Replace(Noise.Replace(text, ""), " "), "")
@@ -224,10 +284,8 @@ sealed partial class LyricsService
         return lines.ToArray();
     }
 
-    static HttpClient CreateClient()
+    static HttpClient CreateClient() => new(new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.All })
     {
-        var http = new HttpClient { Timeout = TimeSpan.FromSeconds(RequestSeconds) };
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("DynamicIsland/1.0");
-        return http;
-    }
+        Timeout = TimeSpan.FromSeconds(RequestSeconds),
+    };
 }

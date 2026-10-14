@@ -1064,6 +1064,16 @@
                                         <local:Toggle x:Name="LyricsSwitch" Style="{StaticResource RowSwitch}"/>
                                     </Grid>
                                 </Button>
+                                <Button Style="{StaticResource RowButton}" Click="SourcesRow_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Search"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Источники текста"/>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                            <TextBlock x:Name="SourcesText" Foreground="{StaticResource Dim}" VerticalAlignment="Center"/>
+                                            <local:Icon Style="{StaticResource RowChevron}" Margin="8,1,0,0"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Button>
                                 <Button Style="{StaticResource RowButton}" Click="LyricEffects_Click">
                                     <Grid>
                                         <local:Icon Style="{StaticResource RowIcon}" Kind="Sparkle"/>
@@ -1848,7 +1858,7 @@
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
                                 <local:Icon x:Name="WeatherIcon" Kind="Sun" Width="38" Height="38" VerticalAlignment="Center"/>
                                 <local:Digits x:Name="WeatherDegrees" FontSize="42" FontWeight="SemiBold"
-                                              FontFamily="{StaticResource Display}" Margin="12,0,0,0" VerticalAlignment="Center"/>
+                                              FontFamily="{DynamicResource FaceDisplay}" Margin="12,0,0,0" VerticalAlignment="Center"/>
                             </StackPanel>
                             <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center">
                                 <TextBlock x:Name="WeatherSky" FontSize="13.5" FontWeight="SemiBold" HorizontalAlignment="Right"/>
@@ -1861,7 +1871,7 @@
                         <UniformGrid x:Name="WeatherHours" Rows="1" Margin="4,12,4,0"/>
                         <StackPanel x:Name="WeatherNote" Margin="12,2,12,0">
                             <TextBlock x:Name="WeatherNoteTitle" FontSize="21" FontWeight="SemiBold"
-                                       FontFamily="{StaticResource Display}"/>
+                                       FontFamily="{DynamicResource FaceDisplay}"/>
                             <TextBlock x:Name="WeatherNoteText" FontSize="12" Foreground="{StaticResource Dim}" Margin="0,4,0,0"
                                        TextWrapping="Wrap"/>
                             <Button x:Name="WeatherAction" Style="{StaticResource ChipButton}" Height="36" Margin="-8,14,-8,0"
@@ -1880,6 +1890,59 @@
                                 </Grid>
                             </Button>
                         </local:RowList>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Which places the island is told to ask for a song's words. The rows stand in the order their
+                     answers are believed, the same order the service keeps them in. -->
+                <Grid x:Name="SourcesView" Width="320" Height="220" HorizontalAlignment="Center" VerticalAlignment="Top">
+                    <StackPanel x:Name="SourceBody" Margin="8,6,8,0" VerticalAlignment="Top">
+                        <Button Style="{StaticResource BackButton}" Content="ИСТОЧНИКИ ТЕКСТА" Click="SourcesBack_Click"/>
+                        <Border Style="{StaticResource Card}" Margin="0,8,0,0">
+                            <local:RowList x:Name="SourceRows">
+                                <Button Style="{StaticResource RowButton}" Click="Source_Click">
+                                    <Grid>
+                                        <TextBlock VerticalAlignment="Center" Text="LRCLIB"/>
+                                        <local:Toggle x:Name="LrclibSwitch" Style="{StaticResource RowSwitch}"/>
+                                    </Grid>
+                                </Button>
+                                <Button Style="{StaticResource RowButton}" Click="Source_Click">
+                                    <Grid>
+                                        <TextBlock VerticalAlignment="Center" Text="Deezer"/>
+                                        <local:Toggle x:Name="DeezerSwitch" Style="{StaticResource RowSwitch}"/>
+                                    </Grid>
+                                </Button>
+                                <Button Style="{StaticResource RowButton}" Click="Source_Click">
+                                    <Grid>
+                                        <TextBlock VerticalAlignment="Center" Text="NetEase"/>
+                                        <local:Toggle x:Name="NetEaseSwitch" Style="{StaticResource RowSwitch}"/>
+                                    </Grid>
+                                </Button>
+                                <Button Style="{StaticResource RowButton}" Click="Source_Click">
+                                    <Grid>
+                                        <TextBlock VerticalAlignment="Center" Text="QQ Music"/>
+                                        <local:Toggle x:Name="QqMusicSwitch" Style="{StaticResource RowSwitch}"/>
+                                    </Grid>
+                                </Button>
+                                <Button Style="{StaticResource RowButton}" Click="Source_Click">
+                                    <Grid>
+                                        <TextBlock VerticalAlignment="Center" Text="Kugou"/>
+                                        <local:Toggle x:Name="KugouSwitch" Style="{StaticResource RowSwitch}"/>
+                                    </Grid>
+                                </Button>
+                                <Button Style="{StaticResource RowButton}" Click="Source_Click">
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="Paxsenix"/>
+                                            <Border Background="#33FF9F0A" CornerRadius="5" Padding="5,1,5,2" Margin="8,1,0,0" VerticalAlignment="Center">
+                                                <TextBlock Text="BETA" FontSize="9.5" FontWeight="Bold" Foreground="{StaticResource Orange}"/>
+                                            </Border>
+                                        </StackPanel>
+                                        <local:Toggle x:Name="PaxsenixSwitch" Style="{StaticResource RowSwitch}"/>
+                                    </Grid>
+                                </Button>
+                            </local:RowList>
+                        </Border>
                     </StackPanel>
                 </Grid>
 

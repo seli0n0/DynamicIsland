@@ -14,6 +14,11 @@ public partial class MainWindow
 
     static readonly string[] Pulses = ["Выкл.", "Слабый", "Средний", "Сильный"];
 
+    /// The page of sources holds its own caption first, so a row's number only becomes a source after it.
+    const int FirstSourceRow = 1;
+
+    static readonly string[] SourceNames = ["LRCLIB", "Deezer", "NetEase", "QQ Music", "Kugou", "Paxsenix"];
+
     void SettingsRow_Click(object sender, RoutedEventArgs e) => ShowPanelAndCheckUpdate(Panel.Settings);
 
     /// Dimming the whole desktop is only worth it when there is something to take; with nothing new the island
@@ -80,6 +85,23 @@ public partial class MainWindow
     void Lyrics_Click(object sender, RoutedEventArgs e)
     {
         Settings.Lyrics = !Settings.Lyrics;
+        UpdateSwitches(true);
+        TrackLyrics();
+    }
+
+    void SourcesRow_Click(object sender, RoutedEventArgs e) => ShowPanel(Panel.Sources);
+
+    void SourcesBack_Click(object sender, RoutedEventArgs e) => ShowPanel(Panel.Settings);
+
+    /// A source is switched off by its own row, and the last one standing cannot go: a page with nothing asked of it
+    /// would leave the island without any words at all, so that press is answered by the row staying as it was.
+    void Source_Click(object sender, RoutedEventArgs e)
+    {
+        var picked = (LyricSource)(1 << SourceRows.Children.IndexOf((UIElement)sender) - FirstSourceRow);
+        LyricSource left = Settings.LyricSources ^ picked;
+        if (left == 0) return;
+
+        Settings.LyricSources = left;
         UpdateSwitches(true);
         TrackLyrics();
     }
@@ -155,6 +177,13 @@ public partial class MainWindow
             (Settings.PhoneAlerts, "уведомления"),
             (Settings.PhoneTimer, "таймер"),
             (Settings.PhoneClipboard, "копия"));
+
+        // the row that opens the page of sources carries which of them are asked, in the order their answers stand
+        Toggle[] sources = [LrclibSwitch, DeezerSwitch, NetEaseSwitch, QqMusicSwitch, KugouSwitch, PaxsenixSwitch];
+        for (int i = 0; i < sources.Length; i++) sources[i].Set(Settings.LyricSources.HasFlag((LyricSource)(1 << i)), animate);
+        string[] asked = [.. SourceNames.Where((_, i) => Settings.LyricSources.HasFlag((LyricSource)(1 << i)))];
+        SourcesText.Text = asked.Length == sources.Length ? "Все"
+            : asked.Length == 1 ? asked[0] : asked.Length + " из " + sources.Length;
     }
 
     /// <summary>The open ones of a set, joined for a row that has room for one word and not for three.</summary>
