@@ -225,7 +225,7 @@ public partial class MainWindow : Window
         ApplyTimerTint();
         ApplyRecordTint();
         TuneDragSprings(false);
-        _ticker.Tick += (_, _) => OnTick();
+        _ticker.Tick += (_, _) => TickSafely();
         Loaded += OnLoaded;
     }
 
@@ -389,6 +389,18 @@ public partial class MainWindow : Window
         StartShapeLoop();
     }
 
+    void TickSafely()
+    {
+        try
+        {
+            OnTick();
+        }
+        catch (Exception ex)
+        {
+            App.Log(ex);
+        }
+    }
+
     void OnTick()
     {
         _ticks++;
@@ -498,6 +510,7 @@ public partial class MainWindow : Window
     {
         View.Media => PillShapes[view] with { Width = _compactMediaWidth },
         View.MediaBig when _playerHasLyricRoom => PillShapes[view] with { Height = PlayerHeight + PlayerLyricsHeight },
+        View.RecordSet => PillShapes[view] with { Width = RecordSetView.Width },
         View.Menu or View.Settings or View.Look or View.Phone or View.PhoneSet => PillShapes[view] with { Height = _views[view].Height },
         _ => PillShapes[view],
     };
