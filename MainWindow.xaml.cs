@@ -13,9 +13,9 @@ namespace DynamicIsland;
 
 public partial class MainWindow : Window
 {
-    enum View { Idle, Media, Timer, Record, Volume, Charge, Focus, Toast, Notice, PairAsk, MediaBig, IdleBig, TimerBig, TimerSet, RecordBig, RecordSet, Menu, Settings, Look, Shelf, Phone, PhoneSet, ClipToast, Loading }
+    enum View { Idle, Media, Timer, Record, Volume, Charge, Focus, Toast, Notice, PairAsk, MediaBig, IdleBig, TimerBig, TimerSet, RecordBig, RecordSet, Menu, Settings, Look, Shelf, Weather, Place, Phone, PhoneSet, ClipToast, Loading }
 
-    enum Panel { None, Player, Timer, TimerSet, Record, Menu, Settings, Look, Shelf, Phone, PhoneSet }
+    enum Panel { None, Player, Timer, TimerSet, Record, Menu, Settings, Look, Shelf, Weather, Place, Phone, PhoneSet }
 
     readonly record struct PillShape(double Width, double Height, double Radius);
 
@@ -41,6 +41,8 @@ public partial class MainWindow : Window
         [View.Settings] = new(320, 479, 34),
         [View.Look] = new(352, 340, 34),
         [View.Shelf] = new(380, 480, 34),
+        [View.Weather] = new(340, 190, 34),
+        [View.Place] = new(320, 200, 34),
         [View.Phone] = new(320, 300, 34),
         [View.PhoneSet] = new(320, 400, 34),
         [View.ClipToast] = new(250, 34, 17),
@@ -62,11 +64,14 @@ public partial class MainWindow : Window
     };
 
     static readonly View[] MenuPages = [View.Settings, View.Look, View.PhoneSet, View.TimerSet, View.TimerBig,
-        View.RecordSet, View.RecordBig, View.Shelf, View.Phone];
+        View.RecordSet, View.RecordBig, View.Shelf, View.Phone, View.Weather];
 
     /// Pills that hold a page of rows are as tall as those rows: the host is clipped to the pill, so a row that
     /// falls past its bottom edge is not low in the list any more, it is gone. See <see cref="FitPages"/>.
     const double PageBottomPad = PinnedPage.Pad;
+
+    /// The pages the weather page opens under itself: a row of them is reached from weather and returns to it.
+    static readonly View[] WeatherPages = [View.Place];
 
     /// The most rows a page of the pinned kind may take before the rest has to be scrolled to: the look page holds the
     /// placement and the faces as sections that open under it, the smartphone page its outward doors and its code, and
@@ -154,6 +159,8 @@ public partial class MainWindow : Window
             [View.Settings] = SettingsView,
             [View.Look] = LookView,
             [View.Shelf] = ShelfView,
+            [View.Weather] = WeatherView,
+            [View.Place] = PlaceView,
             [View.Phone] = PhoneView,
             [View.PhoneSet] = PhoneSetView,
             [View.ClipToast] = ClipToastView,
@@ -199,6 +206,7 @@ public partial class MainWindow : Window
         _overshootTimeout = new DelayedAction(ReleaseVolumeOvershoot);
         _dragLeaveTimeout = new DelayedAction(OnDragLeft);
         _exitDisarm = new DelayedAction(DisarmExit);
+        _placeSearch = new DelayedAction(SearchPlaces);
 
         _media = new MediaService(Dispatcher);
         _media.Changed += OnMediaChanged;
@@ -218,15 +226,18 @@ public partial class MainWindow : Window
         WireBridge();
         _obs.Changed += OnObsChanged;
         _obs.Saved += OnRecordingSaved;
+        _weather.Changed += SyncWeather;
 
         PrepareViews();
         Peekable(EdgeRow, EdgeChoices);
         Peekable(MonitorRow, MonitorChoices);
+        PrepareWeatherHours();
         ApplyTimerTint();
         ApplyRecordTint();
         TuneDragSprings(false);
         _ticker.Tick += (_, _) => TickSafely();
         Loaded += OnLoaded;
+        Deactivated += OnDeactivated;
     }
 
     void PrepareViews()
@@ -261,7 +272,7 @@ public partial class MainWindow : Window
     {
         foreach ((View view, FrameworkElement body) in new (View, FrameworkElement)[]
         {
-            (View.Menu, MenuBody), (View.Settings, SettingsBody),
+            (View.Menu, MenuBody), (View.Settings, SettingsBody), (View.Weather, WeatherBody),
         }) FitPage(view, body);
         foreach (PinnedPage page in _pages.Values) page.Fit();
     }
@@ -343,6 +354,7 @@ public partial class MainWindow : Window
         SyncAccent(false);
         SyncShelf();
         SyncRecord();
+        SyncWeather();
         SyncGlass(false);
         OpenFrost(Settings.Glass, false);
         SyncClip();
@@ -418,6 +430,7 @@ public partial class MainWindow : Window
         {
             UpdateClock();
             PollPower();
+            _ = _weather.RefreshAsync();
             Native.KeepOnTop(_hwnd);
             _glass.Place();
             if (_media.IsPlaying) _lastPlayedAt = DateTime.UtcNow;
@@ -434,7 +447,9 @@ public partial class MainWindow : Window
             Panel.Look => View.Look,
             Panel.PhoneSet => View.PhoneSet,
             Panel.Shelf => View.Shelf,
+            Panel.Weather => View.Weather,
             Panel.Phone => View.Phone,
+            Panel.Place => View.Place,
             Panel.TimerSet => View.TimerSet,
             Panel.Record => _obs.Recording ? View.RecordBig : View.RecordSet,
             Panel.Timer when _countdown.IsActive => View.TimerBig,
@@ -475,6 +490,8 @@ public partial class MainWindow : Window
 
         _morphing = true;
         SwitchView(_views[target], MenuDirection(previous, target));
+        if (target == View.Place) BeginTyping();
+        else if (previous == View.Place) EndTyping();
         MoveMediaSpot(previous, target, to);
         UpdateTargets();
     }
@@ -502,16 +519,21 @@ public partial class MainWindow : Window
         else FadeOut(Shared);
     }
 
-    static int MenuDirection(View from, View to) =>
-        (from == View.Menu || from == View.Settings) && MenuPages.Contains(to) ? 1
-        : (to == View.Menu || to == View.Settings) && MenuPages.Contains(from) ? -1 : 0;
+    static int MenuDirection(View from, View to) => IsPageOf(from, to) ? 1 : IsPageOf(to, from) ? -1 : 0;
+
+    /// Whether one page opens the other: the menu and the settings page hold the same listed rows, and the weather
+    /// page opens only the place page it comes back from.
+    static bool IsPageOf(View parent, View page) =>
+        parent == View.Weather ? WeatherPages.Contains(page)
+        : (parent == View.Menu || parent == View.Settings) && MenuPages.Contains(page);
 
     PillShape ShapeOf(View view) => view switch
     {
         View.Media => PillShapes[view] with { Width = _compactMediaWidth },
         View.MediaBig when _playerHasLyricRoom => PillShapes[view] with { Height = PlayerHeight + PlayerLyricsHeight },
         View.RecordSet => PillShapes[view] with { Width = RecordSetView.Width },
-        View.Menu or View.Settings or View.Look or View.Phone or View.PhoneSet => PillShapes[view] with { Height = _views[view].Height },
+        View.Menu or View.Settings or View.Look or View.Weather or View.Place or View.Phone or View.PhoneSet
+            => PillShapes[view] with { Height = _views[view].Height },
         _ => PillShapes[view],
     };
 
@@ -549,7 +571,7 @@ public partial class MainWindow : Window
 
     void Collapse()
     {
-        if (_hovered || _pickingFiles) return;
+        if (_hovered || _pickingFiles || IsTyping) return;
         ShowPanel(Panel.None);
     }
 

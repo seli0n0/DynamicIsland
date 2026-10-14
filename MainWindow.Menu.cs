@@ -137,6 +137,7 @@ public partial class MainWindow
         RimSwitch.Set(Settings.Rim, animate);
         AppVolumeSwitch.Set(Settings.AppVolume, animate);
         NetworkSwitch.Set(Settings.Network, animate);
+        WeatherSwitch.Set(Settings.Weather, animate);
         MicSwitch.Set(Settings.Mic, animate);
         NoticesSwitch.Set(Settings.Notices, animate);
         FullscreenSwitch.Set(Settings.HideFullscreen, animate);
