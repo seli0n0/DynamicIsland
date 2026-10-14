@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Automation;
@@ -25,6 +26,12 @@ public partial class MainWindow
     /// house would let a silent phone's charge answer for the one the page is looking at; a phone that has said nothing
     /// is shown as no figure at all.</summary>
     readonly Dictionary<string, (int level, bool charging)> _charges = [];
+
+    /// <summary>The lowest mark each phone has already been warned for, so a phone that says its charge again on every
+    /// reconnection — or that has been sitting at seven per cent since before the island was opened — is not warned for
+    /// a second and a third time. Cleared once a phone comes back above the marks, which is a charge worth watching
+    /// again.</summary>
+    readonly Dictionary<string, int> _warned = [];
 
     Bridge.Asking? _pairAsk;
 
@@ -70,15 +77,23 @@ public partial class MainWindow
         {
             // a phone answers for its charge again on every reconnection, so only a word that changes the answer —
             // off the charger, then on it — is worth the pill
-            bool wasOff = who.Length > 0 && _charges.TryGetValue(who, out (int at, bool on) before) && !before.on;
+            (int was, bool on) before = (0, false);
+            bool heard = who.Length > 0 && _charges.TryGetValue(who, out before);
             if (who.Length > 0) _charges[who] = (level, charging);
             RefreshPhone();
-            if (wasOff && charging && level >= 0) ShowPhoneCharge(level);
+            if (level < 0 || !heard) return;
+            if (charging)
+            {
+                if (!before.on) ShowPhoneCharge(level);
+            }
+            else WarnPhoneLow(who, before.was, level);
         });
         _bridge.Noticed += notice => OnUi(() => PhoneNoticed(notice));
         _bridge.NoticeGone += key => OnUi(() => PhoneNoticeGone(key));
         _bridge.PhoneLeft += (gone, device) => OnUi(() => PhoneLeft(gone, device));
         _bridge.Ordered += order => OnUi(() => PhoneOrdered(order));
+        _bridge.Linked += url => OnUi(() => PhoneLinked(url));
+        _bridge.Pressed += key => OnUi(() => PhonePressed(key));
         _bridge.Wanted += ask => OnUi(() =>
         {
             _pairAsk = ask;
@@ -107,6 +122,30 @@ public partial class MainWindow
             RefreshPhone();
             if (_view == View.Notice && PhoneArt.Brand(_noticeApp) is { } brand) ShowNoticeArt(brand, _noticeApp);
         });
+
+        // the row of the settings page says what it lets a phone press by the bridge's own list, so the words on the
+        // page cannot drift from the buttons the phone is actually handed
+        PhoneRemoteRow.ToolTip = "Страница «Выполнение команд» на телефоне: "
+            + string.Join(" · ", BridgeKde.Remote.Select(one => one.Name));
+    }
+
+    /// <summary>
+    /// A phone coming to the end of its charge, told the way this machine's own headset is: as it comes down through a
+    /// mark rather than as it sits under one. A phone says its charge again on every reconnection and on every hour it
+    /// is asked, so the mark is what makes the saying new — and one already low when this island first heard it is
+    /// remembered as warned rather than warned, since the owner has the phone in hand and the island has no news.
+    /// </summary>
+    void WarnPhoneLow(string who, int was, int level)
+    {
+        int mark = level <= PhoneCriticalPercent ? PhoneCriticalPercent : level <= PhoneLowPercent ? PhoneLowPercent : -1;
+        if (mark < 0)
+        {
+            _warned.Remove(who);
+            return;
+        }
+        if (_warned.TryGetValue(who, out int given) && given <= mark) return;
+        _warned[who] = mark;
+        if (was > mark) ShowPhoneLow(level);
     }
 
     /// <summary>
@@ -200,6 +239,7 @@ public partial class MainWindow
         string lead = gone + "/";
         int left = _held.RemoveAll(held => held.Id.StartsWith(lead));
         _charges.Remove(device);
+        _warned.Remove(device);
         if (device != _phoneGuest)
         {
             if (left > 0) RefreshPhone();
@@ -240,6 +280,73 @@ public partial class MainWindow
     {
         if (_media.Duration.TotalSeconds < 1) return;
         _media.Seek(Math.Clamp(seconds / _media.Duration.TotalSeconds, 0, 1));
+    }
+
+    // ---------------------------------------- what the phone asked this machine to open or press
+
+    /// <summary>
+    /// A page the phone shared, opened here. Only a web address is opened. A phone's word for a link travels in the
+    /// same packet as the words and the files it shares, and a shell handed whatever the phone names would let a paired
+    /// phone start a program on this machine, so the scheme is checked before anything is tried and what fails the
+    /// check is reported rather than run.
+    /// </summary>
+    void PhoneLinked(string url)
+    {
+        if (!Settings.PhoneLinks)
+        {
+            Notify(Glyph.Tray, _dim, "Ссылка не открыта", "Открывать ссылки на этом ПК выключено");
+            return;
+        }
+        if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? page) || page.Scheme is not ("http" or "https"))
+        {
+            Notify(Glyph.Tray, _red, "Ссылка не открыта", "Остров открывает только веб-страницы");
+            return;
+        }
+        try
+        {
+            Process.Start(new ProcessStartInfo(page.AbsoluteUri) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            App.Log(ex);
+            Notify(Glyph.Tray, _red, "Страница не открылась", "Здесь нет браузера для неё");
+            return;
+        }
+        string host = page.Host;
+        Notify(Glyph.Tray, _green, "Ссылка с телефона", host.Length > 34 ? host[..34] + "…" : host);
+    }
+
+    /// <summary>
+    /// A button of the island's own list pressed on the phone's page. Only a key from that list is answered: the phone
+    /// holds the command line the island wrote for each of its buttons, but a press carries the key alone, so a phone
+    /// that names something else reaches nothing here — and a key the island never offered is written down and dropped.
+    /// </summary>
+    void PhonePressed(string key)
+    {
+        int at = Array.FindIndex(BridgeKde.Remote, one => one.Key == key);
+        if (at < 0)
+        {
+            App.Note($"a press of {key} came for no button the island offered");
+            return;
+        }
+        switch (key)
+        {
+            case "island.record":
+                if (!_obs.IsReady)
+                {
+                    Notify(Glyph.Record, _red, "OBS не отвечает", "Запись с телефона не началась");
+                    return;
+                }
+                _ = _obs.Recording ? _obs.StopRecordAsync() : _obs.StartRecordAsync();
+                break;
+            case "island.music": _media.TogglePlay(); break;
+            case "island.timer5":
+                if (_countdown.IsActive) StopTimer();
+                else StartTimer(TimeSpan.FromMinutes(5));
+                break;
+            case "island.notices": _bridge.AskNotices(); break;
+        }
+        Notify(Glyph.Pointer, _green, "Пульт с телефона", BridgeKde.Remote[at].Name);
     }
 
     /// <summary>
@@ -298,7 +405,7 @@ public partial class MainWindow
         PhoneNoticeCount.Text = shelf.Count >= Held ? $"{Held}+" : shelf.Count.ToString();
         foreach (Bridge.Notice notice in shelf) PhoneNoticeRows.Children.Add(PhoneNoticeRow(notice));
         PhoneNoticeHint.Text = !Settings.Bridge ? "Мост выключен"
-            : _phoneGuest.Length > 0 ? "Телефон ничего не держит" : "Телефон ещё не заходил";
+            : _phoneGuest.Length > 0 ? "Нет уведомлений" : "Устройство";
         PhoneNoticeHint.Visibility = shelf.Count > 0 ? Visibility.Collapsed : Visibility.Visible;
     }
 
@@ -555,6 +662,15 @@ public partial class MainWindow
         Notify(Glyph.Note, _dim, "Спросил у телефона", "Что он держит, придёт сюда");
     }
 
+    /// <summary>The phone is called from the row and stops on the phone's own screen: the plugin that answers a call
+    /// has no word for ceasing, so the island says the call once and keeps no state of its own about a ringing it
+    /// cannot see.</summary>
+    void PhoneRing_Click(object sender, RoutedEventArgs e)
+    {
+        _bridge.Ring();
+        Notify(Glyph.Pin, _green, "Звоню телефону", "Ищи по звуку · смолкнуть ему на его же экране");
+    }
+
     void PhoneAlerts_Click(object sender, RoutedEventArgs e)
     {
         Settings.PhoneAlerts = !Settings.PhoneAlerts;
@@ -574,6 +690,30 @@ public partial class MainWindow
     {
         Settings.PhoneClipboard = !Settings.PhoneClipboard;
         UpdateSwitches(true);
+    }
+
+    void PhoneLinks_Click(object sender, RoutedEventArgs e)
+    {
+        Settings.PhoneLinks = !Settings.PhoneLinks;
+        UpdateSwitches(true);
+    }
+
+    /// <summary>
+    /// The remote's switch. The phone keeps whatever list it was last handed — its page of commands is built from what
+    /// the desktop offered and stays until said otherwise — so a switch that has just been turned off is only truly off
+    /// once the empty list reaches it, and the same offer lays the buttons back down when it is turned on again.
+    /// </summary>
+    void PhoneRemote_Click(object sender, RoutedEventArgs e)
+    {
+        Settings.PhoneRemote = !Settings.PhoneRemote;
+        UpdateSwitches(true);
+        _bridge.Offer();
+        // a switch that is on with no phone here that runs the page is a promise the island cannot keep, so the row
+        // says which of the two it has: the buttons, or a phone that has nowhere to put them
+        Notify(Glyph.Pointer, Settings.PhoneRemote && _bridge.HasRemote() ? _green : _dim,
+            "Пульт с телефона", Settings.PhoneRemote
+                ? _bridge.HasRemote() ? "Кнопки легли на страницу телефона" : "Ни один телефон здесь не держит их"
+                : "Телефону отдан пустой список");
     }
 
     void PhoneRow_Click(object sender, RoutedEventArgs e)
@@ -599,6 +739,7 @@ public partial class MainWindow
             _bridge.Stop();
             _phoneGuest = "";
             _charges.Clear();
+            _warned.Clear();
             _pairAsk = null;
             _held.Clear(); // a closed door keeps no shelf of what the phone behind it was holding
             RefreshPhone();
@@ -659,6 +800,9 @@ public partial class MainWindow
         MenuPhoneCharge.Visibility = said ? Visibility.Visible : Visibility.Collapsed;
         MenuPhoneCell.Set(shown, charging, true);
         MenuPhone.Text = said ? shown + "%" : "";
+        // a phone that does not name the plugin that answers a call has no such door, so the row of the settings page
+        // that would only promise one is kept off it
+        PhoneFindRow.Visibility = live && _bridge.CanRing() ? Visibility.Visible : Visibility.Collapsed;
         if (live && url.Length > 0 && Code(url, out BitmapSource? code, out int side))
         {
             int grown = Math.Max(2, PlateRoom / side) * side;

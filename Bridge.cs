@@ -44,6 +44,11 @@ sealed partial class Bridge
     /// </summary>
     public event Action<string, string>? PhoneLeft;
 
+    /// <summary>A page the phone shared to this machine, and a button of the island's own the phone pressed. Both are
+    /// the phone's word for «do this here», and both are raised on the channel's thread.</summary>
+    public event Action<string>? Linked;
+    public event Action<string>? Pressed;
+
     /// <summary>
     /// The phone's word about this machine's music, and this machine's music back at the phone. The first is raised for
     /// a button the phone pressed on its own screen and for the place in the song it slid to; the second carries what
@@ -180,6 +185,35 @@ sealed partial class Bridge
 
     /// <summary>Give this machine's copied words to every phone standing on the channel.</summary>
     public void Pass(string text) => To(() => _kde?.Pass(text));
+
+    /// <summary>Call a phone to be found. Only a phone that says it answers such a call is called; the rest are not
+    /// sent a packet their own plugins would throw away.</summary>
+    public void Ring() => To(() => _kde?.Ring());
+
+    /// <summary>Whether a phone stands here that answers being called, which decides whether the page shows the row.</summary>
+    public bool CanRing()
+    {
+        try { return _kde?.CanRing() ?? false; }
+        catch (Exception ex) { App.Log(ex); return false; }
+    }
+
+    /// <summary>A page the phone shared to this machine. The island opens it, and only as a page: a link from across
+    /// the room that named a program instead of a site is not something to hand the shell.</summary>
+    public void Link(string url) => Linked?.Invoke(url);
+
+    /// <summary>The phone pressed one of the buttons this island offered it, by the key the button was offered under.</summary>
+    public void Press(string key) => Pressed?.Invoke(key);
+
+    /// <summary>Hand the island's buttons to every phone here that runs the page for them — asked when the owner
+    /// switches the remote on, so the phone's page fills without a new pairing.</summary>
+    public void Offer() => To(() => _kde?.AnnounceCommands());
+
+    /// <summary>Whether a phone stands here that has the page of buttons at all.</summary>
+    public bool HasRemote()
+    {
+        try { return _kde?.HasRemote() ?? false; }
+        catch (Exception ex) { App.Log(ex); return false; }
+    }
 
     /// <summary>The phone said something about this machine's music; the island decides what it means.</summary>
     public void Order(Command order) => Ordered?.Invoke(order);

@@ -323,6 +323,7 @@ sealed class BridgeKde
                 PeerKey = KeyOf(certificate),
                 Address = standing,
                 Name = peer.Name,
+                Takes = peer.Takes,
                 Line = held,
             };
             secure = null; // the channel belongs to the phone from here, and the ending below closes it
@@ -351,6 +352,10 @@ sealed class BridgeKde
             // what the phone was holding before this channel existed is asked for the moment it settles, as the family
             // asks it: a notice that arrived while the island was closed is read here rather than lost on the phone
             if (phone.Paired && Settings.PhoneNotices) await Holds(phone);
+            // the phone asks for the list when its page opens, but it keeps the last one it was given for its own
+            // widget and media controls; saying it the moment a pairing settles is what makes those show the island's
+            // buttons before its owner has walked into the page to ask
+            if (phone.Paired && Settings.PhoneRemote && phone.Takes.Contains(Commands)) await Offer(phone);
             // a phone we already stand paired with needs no asking again: it restored its own trust when it woke, and
             // a pair request sent to a device that considers itself paired makes it unpair itself and start over
             await Talk(phone, token);
@@ -568,6 +573,24 @@ sealed class BridgeKde
                 await Music(phone, packet, token);
                 break;
 
+            case "kdeconnect.runcommand.request":
+                // the phone's page asks for the buttons the moment it opens, and presses one by naming its key. Both
+                // are answered only while the owner lets the phone press anything: a switched-off remote is a phone
+                // that gets no list, and a press from it is said and left alone rather than run.
+                if (Flag(body, "requestCommandList"))
+                {
+                    Said($"{phone.Name} asked for the island's buttons");
+                    await Offer(phone); // an owner who has switched the remote off is offered an empty page
+                }
+                else if (Text(body, "key") is { Length: > 0 } pressed)
+                {
+                    Said($"{phone.Name} pressed {pressed}");
+                    if (Settings.PhoneRemote) _bridge.Press(pressed);
+                    else Said("the remote is switched off here, so the press was dropped");
+                }
+                else Said($"{phone.Name} said {packet.Type} with no key and no asking in it");
+                break;
+
             case "kdeconnect.mpris":
                 // the phone mirrors its own player at this machine the way the island mirrors this one at it: heard,
                 // and left where it lies. An island showing two players would have to say which one its own buttons
@@ -601,6 +624,19 @@ sealed class BridgeKde
     /// </summary>
     async Task Share(Phone phone, Packet packet, CancellationToken token)
     {
+        // A page shared from the phone is this same packet type with no payload and one word in its body. The app's
+        // share plugin hears `filename`, then `text`, then `url`, and opens a url the way its owner opens anything
+        // else; an island that knows only files lets a shared link go past unheard, which is what the packet's own
+        // «Error: Nothing attached!» line reads like from this side. `text` is left where it is, the clipboard plugin
+        // having long said the same thing with a word for where the copy was made.
+        string link = Text(packet.Body, "url");
+        if (link.Length > 0)
+        {
+            Said($"{phone.Name} shared a link: {Trimmed(link)}");
+            _bridge.Link(link);
+            return;
+        }
+
         // counted in the body by the app and in the outer packet by the desktop; a promise bigger than the island
         // takes in is turned down before any channel is opened
         long promised = Whole(packet.Body, "payloadSize") ?? Whole(packet.Root, "payloadSize") ?? 0;
@@ -894,6 +930,97 @@ sealed class BridgeKde
     /// <summary>The number the next saying is filed under on the phone. Started from the clock so an island that is
     /// closed and opened again does not replace the saying the last run left on the phone's bar.</summary>
     long _spoken = Environment.TickCount64;
+
+    /// <summary>
+    /// The phone called to be found, the way its own find-my-phone plugin is called: one packet naming that plugin,
+    /// whose whole answer is to start its ring and let the owner's screen stop it. The plugin has no word for
+    /// ceasing — the desktop's own spelling of the call does, with a command in its body, while the app reads no body
+    /// at all and simply rings — so the call is said once and the phone keeps the last word. It answers only a device
+    /// it has itself listed among those it can hear, which is the phone's <c>incomingCapabilities</c>: the list this
+    /// island had no use for until now, since the family tells a peer what it sends rather than what it takes. A phone
+    /// without that door is left alone rather than sent a packet its app would throw away.
+    /// </summary>
+    public void Ring()
+    {
+        List<Phone> phones = Standing().Where(one => one.Takes.Contains(Rings)).ToList();
+        if (phones.Count == 0)
+        {
+            Said($"a call was ready for the phone and no phone here answers one: {Rings} is not among what it takes");
+            return;
+        }
+
+        foreach (Phone phone in phones)
+            _ = Send(phone, Frame(Rings, new JsonObject { ["ringCommand"] = "ring" }), _turns);
+        Said($"{phones.Count} phone is called to be found");
+    }
+
+    /// <summary>Whether a phone stands here that answers being called — which is what decides whether the page has the
+    /// row at all, rather than a row that does nothing when pressed.</summary>
+    public bool CanRing()
+    {
+        lock (_gate) return _live.Values.Any(one => one.Paired && one.Secure != null && one.Takes.Contains(Rings));
+    }
+
+    const string Rings = "kdeconnect.findmyphone.request";
+
+    // ------------------------------------------------------------- the island's own buttons, at the phone's hand
+
+    /// <summary>
+    /// The buttons the phone is handed, on the page its own app calls «Выполнение команд»: a key the phone sends back
+    /// unchanged, the name it shows big, and the line it shows under the name. The dialect is measured from
+    /// <c>RunCommandPlugin.kt</c> — the list travels under <c>commandList</c> as a string of JSON, an object keyed by
+    /// those same keys whose every entry names <c>name</c> and <c>command</c>, and a pressed button comes back as
+    /// <c>key</c> — and it is read here in one direction only. A desktop puts a shell line in <c>command</c> and runs
+    /// it; this island shows that word on the phone and runs nothing of what the phone names. A key is looked up in the
+    /// table below or the press is said and dropped, so a phone cannot ask this machine for a thing its own glass has
+    /// no button for.
+    /// </summary>
+    public static readonly (string Key, string Name, string Note)[] Remote =
+    [
+        ("island.record", "Запись экрана", "OBS: начать или остановить"),
+        ("island.music", "Музыка", "пауза или играть"),
+        ("island.timer5", "Таймер на 5 минут", "остановить, если идёт"),
+        ("island.notices", "Уведомления телефона", "переспросить, что телефон держит"),
+    ];
+
+    /// <summary>The list as the phone's plugin reads it. One object of entries, carried as a string, because that is
+    /// how the app parses it (<c>JSONObject(np.getString("commandList"))</c>) — an array laid on the wire where this
+    /// string belongs is a <c>JSONException</c> and an empty page on the phone.</summary>
+    static string CommandList()
+    {
+        var table = new JsonObject();
+        foreach ((string key, string name, string note) in Remote)
+            table[key] = new JsonObject { ["name"] = name, ["command"] = note };
+        return table.ToJsonString();
+    }
+
+    /// <summary>The buttons handed to one phone — or an empty list, since a phone whose owner has just switched the
+    /// remote off is better served an empty page than a page of buttons that answer nothing.</summary>
+    async Task Offer(Phone phone) => await Send(phone, Frame(Commands, new JsonObject
+    {
+        ["commandList"] = Settings.PhoneRemote ? CommandList() : "{}",
+        // the app lets a command be added on the phone's side only when the other end says it keeps a list of its own
+        // that can take one; this island's list is written into its code, so there is nothing to add a button to
+        ["canAddCommand"] = false,
+    }), _turns);
+
+    /// <summary>To every phone here that runs the plugin: the page on the phone shows the list it was last given, so a
+    /// switch thrown here has to be said outward rather than wait for the next pairing.</summary>
+    public void AnnounceCommands()
+    {
+        List<Phone> phones = Standing().Where(one => one.Takes.Contains(Commands)).ToList();
+        foreach (Phone phone in phones) _ = Offer(phone);
+        Said($"{(Settings.PhoneRemote ? Remote.Length : 0)} buttons of the island offered to {phones.Count} phone");
+    }
+
+    /// <summary>Whether the phone the page names runs the page of buttons — which is what decides whether the settings
+    /// row has anything to switch on at all.</summary>
+    public bool HasRemote()
+    {
+        lock (_gate) return _live.Values.Any(one => one.Paired && one.Secure != null && one.Takes.Contains(Commands));
+    }
+
+    const string Commands = "kdeconnect.runcommand";
 
     /// <summary>A saying shortened for the log, which is read one line at a time.</summary>
     static string Trimmed(string text) => text.Length <= 70 ? text : text[..70] + "…";
@@ -1226,7 +1353,9 @@ sealed class BridgeKde
         // media page asks about this machine's music under `kdeconnect.mpris.request`, and hears it under the shorter
         // name — see <see cref="CanSay" />
         "kdeconnect.battery", "kdeconnect.notification", "kdeconnect.clipboard", "kdeconnect.share.request",
-        "kdeconnect.mpris.request",
+        // the page of buttons asks for its list and names a pressed key under this one type, and the island answers
+        // under the shorter name the list itself travels by
+        "kdeconnect.mpris.request", "kdeconnect.runcommand.request",
     ];
 
     /// <summary>
@@ -1240,9 +1369,14 @@ sealed class BridgeKde
     [
         // the clipboard is named here as well as below: the phone keeps its clipboard plugin for a device that can
         // both send it and hear it, and this island now does — a copy made here is laid on the phone's clipboard, and
-        // one made there is kept here
+        // one made there is kept here. The call to be found is named only here, since nothing comes back over it: it
+        // is the type the phone's find-my-phone plugin is *heard* under, so a device that cannot say it is a device
+        // that phone has no reason to run that plugin for. The list of buttons is named for the same reason: the
+        // phone's «Выполнение команд» page is kept for a device that can be asked for one, and an island that does not
+        // name it is an island with no buttons on that page
         "kdeconnect.notification", "kdeconnect.notification.request", "kdeconnect.notification.reply",
         "kdeconnect.notification.action", "kdeconnect.mpris", "kdeconnect.clipboard",
+        "kdeconnect.findmyphone.request", "kdeconnect.runcommand",
     ];
 
     /// <summary>
@@ -1538,6 +1672,11 @@ sealed class BridgeKde
         public byte[] PeerKey { get; set; } = [];
         public bool Paired { get; set; }
 
+        /// <summary>The packet types this phone says it can hear, from its identity: the plugins of its own that stand
+        /// ready to answer us. A phone that names none of a plugin has no such door, and a packet pushed at it is
+        /// dropped unheard rather than answered with a word.</summary>
+        public string[] Takes = [];
+
         /// <summary>Until when a pair packet from this phone is taken as its own yes to the one the island has just
         /// said, rather than as a fresh ask to be answered back. The two are made of the same words, and answering a
         /// confirmation is how a phone comes to unpair a pairing it has agreed to.</summary>
@@ -1559,9 +1698,11 @@ sealed class BridgeKde
     readonly record struct Packet(string Raw, string Type, long Id, JsonElement Body, JsonElement Root);
 
     /// <summary>A phone as it names itself, on the broadcast or across an open socket before any TLS channel exists.</summary>
-    /// <summary>What a phone says it is, and the packet types it says it can send — which are the plugins it runs,
-    /// named as those plugins name themselves.</summary>
-    sealed record Identity(string Id, string Name, string Address, int Port, int Protocol, string[] Sends)
+    /// <summary>What a phone says it is, the packet types it says it can send, and the types it says it can hear — which
+    /// together are the plugins it runs, named as those plugins name themselves. The second list is the one a plugin of
+    /// the phone answers to: a phone that will not say the island is standing in front of its find-my-door has no door
+    /// there, and asking is a packet the wire throws away.</summary>
+    sealed record Identity(string Id, string Name, string Address, int Port, int Protocol, string[] Sends, string[] Takes)
     {
         public static Identity? Of(byte[] datagram, string from) => Of(Encoding.UTF8.GetString(datagram), from);
 
@@ -1593,7 +1734,7 @@ sealed class BridgeKde
                 // a shout names the door to come to; a phone that came by itself has no need of one
                 int given = Number(body, "tcpPort") ?? 0;
                 return new Identity(id, name, from, given is >= 1716 and <= 1764 ? given : TcpPort, protocol,
-            Names(body, "outgoingCapabilities"));
+            Names(body, "outgoingCapabilities"), Names(body, "incomingCapabilities"));
             }
             catch (Exception ex) when (ex is JsonException or InvalidOperationException)
             {

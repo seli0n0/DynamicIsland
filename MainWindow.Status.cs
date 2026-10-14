@@ -17,6 +17,7 @@ public partial class MainWindow
     const double VolumeHudSeconds = 1.6, ChargeSeconds = 3, FocusSeconds = 2.2;
     const double ChargeFillWidth = 20;
     const int HeadsetLowPercent = 20, HeadsetCriticalPercent = 10;
+    const int PhoneLowPercent = 20, PhoneCriticalPercent = 10;
     const string MutedLabel = "выкл";
     static readonly TimeSpan OvershootHold = TimeSpan.FromMilliseconds(140);
     static readonly CultureInfo Russian = new("ru-RU");
@@ -129,7 +130,9 @@ public partial class MainWindow
 
     void ShowCharging(int percent)
     {
+        ChargeMark.Kind = Glyph.Bolt;
         ChargeLabel.Text = "Зарядка";
+        ChargeText.Foreground = _green;
         ChargeCell.Visibility = Visibility.Visible;
         ChargePhoneCell.Visibility = Visibility.Collapsed;
         ChargeFill.BeginAnimation(WidthProperty, new DoubleAnimation(0, ChargeFillWidth * percent / 100.0, Ms(700))
@@ -145,7 +148,9 @@ public partial class MainWindow
     /// through.</summary>
     void ShowPhoneCharge(int percent)
     {
+        ChargeMark.Kind = Glyph.Bolt;
         ChargeLabel.Text = "Телефон";
+        ChargeText.Foreground = _green;
         ChargeCell.Visibility = Visibility.Collapsed;
         ChargePhoneCell.Visibility = Visibility.Visible;
         ChargePhoneCell.Set(-1, false, false);
@@ -153,8 +158,24 @@ public partial class MainWindow
         ShowCharge(percent);
     }
 
+    /// <summary>A phone coming to the end of its charge, told with its own cell and no bolt — the plug is just what the
+    /// warning asks for, and there is none. The cell is emptied first for the same reason as above: a fill that has
+    /// nowhere to travel from arrives rather than appears.</summary>
+    void ShowPhoneLow(int percent)
+    {
+        ChargeMark.Kind = Glyph.Battery;
+        ChargeLabel.Text = "Низкий заряд";
+        ChargeText.Foreground = _red;
+        ChargeCell.Visibility = Visibility.Collapsed;
+        ChargePhoneCell.Visibility = Visibility.Visible;
+        ChargePhoneCell.Set(-1, false, false);
+        ChargePhoneCell.Set(percent, false, true);
+        ShowCharge(percent);
+    }
+
     void ShowCharge(int percent)
     {
+        ChargeMark.Fill = ChargeText.Foreground;
         ChargeText.Text = percent + "%";
         ShowTransient(View.Charge, ChargeSeconds);
 

@@ -147,6 +147,8 @@ public partial class MainWindow
         PhoneAlertsSwitch.Set(Settings.PhoneAlerts, animate);
         PhoneTimerSwitch.Set(Settings.PhoneTimer, animate);
         PhoneClipboardSwitch.Set(Settings.PhoneClipboard, animate);
+        PhoneLinksSwitch.Set(Settings.PhoneLinks, animate);
+        PhoneRemoteSwitch.Set(Settings.PhoneRemote, animate);
         // the line that opens these three carries what is already open, the way a row of the look page carries its value
         PhoneOutText.Text = Say(
             (Settings.PhoneAlerts, "уведомления"),

@@ -606,7 +606,7 @@
                 </Grid>
 
                 <Grid x:Name="ChargeView" Width="230" Height="34" HorizontalAlignment="Center" VerticalAlignment="Top">
-                    <local:Icon Kind="Bolt" Width="16" Height="16" Fill="{StaticResource Green}"
+                    <local:Icon x:Name="ChargeMark" Kind="Bolt" Width="16" Height="16" Fill="{StaticResource Green}"
                                 HorizontalAlignment="Left" VerticalAlignment="Center" Margin="12,0,0,0"
                                 RenderTransformOrigin="0.5,0.5">
                         <local:Icon.RenderTransform>
@@ -1277,6 +1277,25 @@
                                         <local:Toggle x:Name="PhoneNoticesSwitch" Style="{StaticResource RowSwitch}"/>
                                     </Grid>
                                 </Button>
+                                <!-- The two rows below are the phone asking this machine to do something, rather than
+                                     this machine reading the phone: a page shared from the phone opened here, and the
+                                     island's own buttons laid out on the phone's screen. Neither runs a word the phone
+                                     names — a link is opened only as a web page, and a press is looked up in the
+                                     island's own list of buttons — so both are switches for the owner, not doors. -->
+                                <Button Style="{StaticResource RowButton}" Click="PhoneLinks_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Tray"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Ссылки с телефона"/>
+                                        <local:Toggle x:Name="PhoneLinksSwitch" Style="{StaticResource RowSwitch}"/>
+                                    </Grid>
+                                </Button>
+                                <Button x:Name="PhoneRemoteRow" Style="{StaticResource RowButton}" Click="PhoneRemote_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Pointer"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Пульт с телефона"/>
+                                        <local:Toggle x:Name="PhoneRemoteSwitch" Style="{StaticResource RowSwitch}"/>
+                                    </Grid>
+                                </Button>
                                 <!-- The section below goes the other way: what this machine says is said on the phone's
                                      own screen. A phone shows a notice a desktop sends it by a plugin its owner has to
                                      switch on, so the first of these answers itself with a saying the moment it is
@@ -1324,6 +1343,20 @@
                                         </Button>
                                     </local:RowList>
                                 </Border>
+                                <!-- A phone that answers being called is a phone that can be found by ear; one that does
+                                     not name the plugin has no such door, and the row is kept off the page rather than
+                                     left to say nothing when pressed. The call goes out once and the phone's own screen
+                                     stops it, since the plugin that answers one has no word for ceasing. -->
+                                <Button x:Name="PhoneFindRow" Style="{StaticResource RowButton}" Visibility="Collapsed"
+                                        Click="PhoneRing_Click"
+                                        ToolTip="Заставить телефон звонить, чтобы найти его по звуку">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Pin"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Поиск телефона"/>
+                                        <TextBlock Text="Позвонить" Foreground="{StaticResource Dim}" FontSize="12"
+                                                   HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
                                 <Button Style="{StaticResource RowButton}" Click="CodeRow_Click">
                                     <Grid>
                                         <local:Icon Style="{StaticResource RowIcon}" Kind="Tray"/>

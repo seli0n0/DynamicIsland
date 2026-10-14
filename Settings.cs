@@ -52,6 +52,7 @@ static class Settings
     static bool _phoneNotices = ReadSwitch(nameof(PhoneNotices));
     static bool _phoneAlerts = ReadSwitch(nameof(PhoneAlerts)), _phoneTimer = ReadSwitch(nameof(PhoneTimer));
     static bool _phoneClipboard = ReadSwitch(nameof(PhoneClipboard));
+    static bool _phoneLinks = ReadSwitch(nameof(PhoneLinks)), _phoneRemote = ReadSwitch(nameof(PhoneRemote));
     static bool _dots = ReadSwitch(nameof(Dots), false);
     static bool _lineBar = ReadSwitch(nameof(LineBar));
     static bool _glass = ReadSwitch(nameof(Glass), false);
@@ -234,6 +235,28 @@ static class Settings
     {
         get => _phoneClipboard;
         set => Write(nameof(PhoneClipboard), _phoneClipboard = value);
+    }
+
+    /// <summary>
+    /// Whether a page shared from the phone is opened here. The phone's share sheet names the island when its owner
+    /// wants a link read at a bigger screen, and an island that opens nothing has no reason to be named — but a packet
+    /// from across the room that makes a window appear is still a thing to be asked about rather than assumed.
+    /// </summary>
+    public static bool PhoneLinks
+    {
+        get => _phoneLinks;
+        set => Write(nameof(PhoneLinks), _phoneLinks = value);
+    }
+
+    /// <summary>
+    /// Whether the phone is offered the island's own buttons — the page its app calls «Выполнение команд». Every one of
+    /// them is a thing this island already does to itself from its own glass; nothing here is run out of what the
+    /// phone names, and a phone with this switched off is handed an empty list.
+    /// </summary>
+    public static bool PhoneRemote
+    {
+        get => _phoneRemote;
+        set => Write(nameof(PhoneRemote), _phoneRemote = value);
     }
 
     public static bool HideFullscreen
