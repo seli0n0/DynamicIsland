@@ -3,19 +3,23 @@ namespace DynamicIsland;
 using System.Text;
 
 /// <summary>
-/// A QR code drawn by hand: no library, no package, only the plain rules of ISO/IEC 18004. The island needs it for
-/// one thing, to point a phone at the screen and open the bridge page without anyone typing an address. Byte mode at
-/// error level M is enough, and versions 1 through 10 hold any link a local network can give. The matrix it returns
-/// knows nothing of WPF — it is bools, and whoever draws it decides the colors.
+/// QR codes drawn and read by hand: no library, no package, only the plain rules of ISO/IEC 18004. The island needs
+/// them for two things, to point a phone at the screen and open the bridge page without anyone typing an address, and
+/// to pick up a code that lies on the screen already. For the first, byte mode at error level M is enough, and
+/// versions 1 through 10 hold any link a local network can give; the second has to be ready for whatever another
+/// program printed, so the reader knows every version and all four levels. The matrices neither end knows anything of
+/// WPF — they are bools, and whoever draws one decides the colors, whoever reads one decides where they came from.
 /// </summary>
-static class Qr
+static partial class Qr
 {
     const int LevelM = 0; // the two signs of our error level, which is the only one we make
 
     /// <summary>
-    /// How a version shares its codewords: <see cref="Short"/> blocks of <see cref="ShortData"/> signs apiece, then
-    /// <see cref="Long"/> blocks of one more, every block guarded by <see cref="Ec"/> check signs. From this both the
-    /// room for data and the shape of the interleaving follow, so nothing can fall out of step with it.
+    /// How every version shares its codewords at every error level: <see cref="Short"/> blocks of
+    /// <see cref="ShortData"/> signs apiece, then <see cref="Long"/> blocks of one more, every block guarded by
+    /// <see cref="Ec"/> check signs. From this both the room for data and the shape of the interleaving follow, so
+    /// nothing can fall out of step with it. The rows stand in the order the format marks name their levels, so a
+    /// reader that has just unwrapped those marks takes its row by the number it found.
     /// </summary>
     readonly record struct Version(int Short, int ShortData, int Long, int Ec)
     {
@@ -25,17 +29,70 @@ static class Qr
         public int Split => Short;
     }
 
-    static readonly Version[] Versions =
-    [
-        new(1, 16, 0, 10), new(1, 28, 0, 16), new(1, 44, 0, 26), new(2, 32, 0, 18), new(2, 43, 0, 24),
-        new(4, 27, 0, 16), new(4, 31, 0, 18), new(2, 38, 2, 22), new(3, 36, 2, 22), new(4, 43, 1, 26),
-    ];
+    static readonly Version[,] Blocks =
+    {
+        //  M                    L                     H                     Q
+        { new(1,16,0,10),  new(1,19,0,7),   new(1,9,0,17),   new(1,13,0,13) },  // v1
+        { new(1,28,0,16),  new(1,34,0,10),  new(1,16,0,28),  new(1,22,0,22) },  // v2
+        { new(1,44,0,26),  new(1,55,0,15),  new(2,13,0,22),  new(2,17,0,18) },  // v3
+        { new(2,32,0,18),  new(1,80,0,20),  new(4,9,0,16),   new(2,24,0,26) },  // v4
+        { new(2,43,0,24),  new(1,108,0,26), new(2,11,2,22),  new(2,15,2,18) },  // v5
+        { new(4,27,0,16),  new(2,68,0,18),  new(4,15,0,28),  new(4,19,0,24) },  // v6
+        { new(4,31,0,18),  new(2,78,0,20),  new(4,13,1,26),  new(2,14,4,18) },  // v7
+        { new(2,38,2,22),  new(2,97,0,24),  new(4,14,2,26),  new(4,18,2,22) },  // v8
+        { new(3,36,2,22),  new(2,116,0,30), new(4,12,4,24),  new(4,16,4,20) },  // v9
+        { new(4,43,1,26),  new(2,68,2,18),  new(6,15,2,28),  new(6,19,2,24) },  // v10
+        { new(1,50,4,30),  new(4,81,0,20),  new(3,12,8,24),  new(4,22,4,28) },  // v11
+        { new(6,36,2,22),  new(2,92,2,24),  new(7,14,4,28),  new(4,20,6,26) },  // v12
+        { new(8,37,1,22),  new(4,107,0,26), new(12,11,4,22), new(8,20,4,24) },  // v13
+        { new(4,40,5,24),  new(3,115,1,30), new(11,12,5,24), new(11,16,5,20) }, // v14
+        { new(5,41,5,24),  new(5,87,1,22),  new(11,12,7,24), new(5,24,7,30) },  // v15
+        { new(7,45,3,28),  new(5,98,1,24),  new(3,15,13,30), new(15,19,2,24) }, // v16
+        { new(10,46,1,28), new(1,107,5,28), new(2,14,17,28), new(1,22,15,28) }, // v17
+        { new(9,43,4,26),  new(5,120,1,30), new(2,14,19,28), new(17,22,1,28) }, // v18
+        { new(3,44,11,26), new(3,113,4,28), new(9,13,16,26), new(17,21,4,26) }, // v19
+        { new(3,41,13,26), new(3,107,5,28), new(15,15,10,28), new(15,24,5,30) }, // v20
+        { new(17,42,0,26), new(4,116,4,28), new(19,16,6,30), new(17,22,6,28) }, // v21
+        { new(17,46,0,28), new(2,111,7,28), new(34,13,0,24), new(7,24,16,30) }, // v22
+        { new(4,47,14,28), new(4,121,5,30), new(16,15,14,30), new(11,24,14,30) }, // v23
+        { new(6,45,14,28), new(6,117,4,30), new(30,16,2,30), new(11,24,16,30) }, // v24
+        { new(8,47,13,28), new(8,106,4,26), new(22,15,13,30), new(7,24,22,30) }, // v25
+        { new(19,46,4,28), new(10,114,2,28), new(33,16,4,30), new(28,22,6,28) }, // v26
+        { new(22,45,3,28), new(8,122,4,30), new(12,15,28,30), new(8,23,26,30) }, // v27
+        { new(3,45,23,28), new(3,117,10,30), new(11,15,31,30), new(4,24,31,30) }, // v28
+        { new(21,45,7,28), new(7,116,7,30), new(19,15,26,30), new(1,23,37,30) }, // v29
+        { new(19,47,10,28), new(5,115,10,30), new(23,15,25,30), new(15,24,25,30) }, // v30
+        { new(2,46,29,28), new(13,115,3,30), new(23,15,28,30), new(42,24,1,30) }, // v31
+        { new(10,46,23,28), new(17,115,0,30), new(19,15,35,30), new(10,24,35,30) }, // v32
+        { new(14,46,21,28), new(17,115,1,30), new(11,15,46,30), new(29,24,19,30) }, // v33
+        { new(14,46,23,28), new(13,115,6,30), new(59,16,1,30), new(44,24,7,30) }, // v34
+        { new(12,47,26,28), new(12,121,7,30), new(22,15,41,30), new(39,24,14,30) }, // v35
+        { new(6,47,34,28), new(6,121,14,30), new(2,15,64,30), new(46,24,10,30) }, // v36
+        { new(29,46,14,28), new(17,122,4,30), new(24,15,46,30), new(49,24,10,30) }, // v37
+        { new(13,46,32,28), new(4,122,18,30), new(42,15,32,30), new(48,24,14,30) }, // v38
+        { new(40,47,7,28), new(20,117,4,30), new(10,15,67,30), new(43,24,22,30) }, // v39
+        { new(18,47,31,28), new(19,118,6,30), new(20,15,61,30), new(34,24,34,30) }, // v40
+    };
 
     // The centers of the small square patterns, as the standard names them; none for version 1.
     static readonly int[][] Alignments =
     [
         [], [6, 18], [6, 22], [6, 26], [6, 30], [6, 34], [6, 22, 38], [6, 24, 42], [6, 26, 46], [6, 28, 50],
+        [6, 30, 54], [6, 32, 58], [6, 34, 62], [6, 26, 46, 66], [6, 26, 48, 70], [6, 26, 50, 74], [6, 30, 54, 78],
+        [6, 30, 56, 82], [6, 30, 58, 86], [6, 34, 62, 90], [6, 28, 50, 72, 94], [6, 26, 50, 74, 98],
+        [6, 30, 54, 78, 102], [6, 28, 54, 80, 106], [6, 32, 58, 84, 110], [6, 30, 58, 86, 114], [6, 34, 62, 90, 118],
+        [6, 26, 50, 74, 98, 122], [6, 30, 54, 78, 102, 126], [6, 26, 52, 78, 104, 130], [6, 30, 56, 82, 108, 134],
+        [6, 34, 60, 86, 112, 138], [6, 30, 58, 86, 114, 142], [6, 34, 62, 90, 118, 146], [6, 30, 54, 78, 102, 126, 150],
+        [6, 24, 50, 76, 102, 128, 154], [6, 28, 54, 80, 106, 132, 158], [6, 32, 58, 84, 110, 136, 162],
+        [6, 26, 54, 82, 110, 138, 166], [6, 30, 58, 86, 114, 142, 170],
     ];
+
+    /// <summary>
+    /// The levels we write at, which is the column of <see cref="Blocks"/> the format marks name for level M, taken
+    /// as far as our own codes go.
+    /// </summary>
+    static readonly Version[] Versions =
+        [.. Enumerable.Range(1, 10).Select(version => Blocks[version - 1, LevelM])];
 
     static readonly byte[] PadBytes = [0xEC, 0x11];
     static readonly int[] Exp = new int[256], Log = new int[256];
@@ -65,7 +122,9 @@ static class Qr
 
     /// <summary>
     /// Paints the matrix into a BGRA buffer, one pixel per module, ringed by <paramref name="quiet"/> pixels of white.
-    /// A scanner reads nothing without that margin, and the buffer comes out ready to blit.
+    /// A scanner reads nothing without that margin, and the buffer comes out ready to blit. The matrix counts its
+    /// modules by column first and row after, as the laying always has, so a pixel of a given row and column takes the
+    /// module of that column and row — painted the other way about the picture is a mirror, and no phone opens it.
     /// </summary>
     /// <returns>The edge of the picture, in pixels.</returns>
     public static int Paint(bool[,] cells, int quiet, byte[] buffer)
@@ -76,11 +135,11 @@ static class Qr
             buffer[at] = buffer[at + 1] = buffer[at + 2] = 0xFF; // white plate
             buffer[at + 3] = 0xFF;                               // and nothing of it see-through
         }
-        for (int row = 0; row < cells.GetLength(0); row++)
+        for (int row = 0; row < cells.GetLength(1); row++)
         {
-            for (int column = 0; column < cells.GetLength(1); column++)
+            for (int column = 0; column < cells.GetLength(0); column++)
             {
-                if (!cells[row, column]) continue;
+                if (!cells[column, row]) continue;
                 int at = ((row + quiet) * side + column + quiet) * 4;
                 buffer[at] = buffer[at + 1] = buffer[at + 2] = 0;
             }
@@ -166,15 +225,15 @@ static class Qr
 
     /// <summary>
     /// Lays the stream over the grid, two columns at a time from the right edge, upwards then downwards, giving each
-    /// free module the next sign. The vertical timing line is no column of data and no pair may straddle it.
+    /// free module the next sign. The vertical timing line is no column of data and no pair may straddle it, so the
+    /// pairing shifts one column left as soon as it reaches that line and every pair after it lands a column over.
     /// </summary>
     static void Spread(bool[,] matrix, bool[,] held, int size, byte[] stream)
     {
         int free = 0;
         for (int pair = 0; pair < (size + 1) / 2; pair++)
         {
-            int right = size - 1 - pair * 2;
-            if (right == 5) right--;
+            int right = Columns(pair, size);
             bool up = pair % 2 == 0;
             for (int step = 0; step < size; step++)
             {
@@ -188,6 +247,17 @@ static class Qr
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// The right column of the pair a given step of the zigzag works on. The pairs begin at the edge and step two
+    /// columns left apiece, but the vertical timing line standing at column six is no data column and no pair straddles
+    /// it, so from that line leftward every pair sits one column nearer the middle than its step would say.
+    /// </summary>
+    static int Columns(int pair, int size)
+    {
+        int right = size - 1 - pair * 2;
+        return right <= 6 ? right - 1 : right;
     }
 
     static void Finders(bool[,] matrix, bool[,] held, int size)
@@ -272,10 +342,7 @@ static class Qr
     /// <summary>Writes both copies of the format marks, and the dark module between them.</summary>
     static void Format(bool[,] matrix, int size, int version, int mask)
     {
-        int value = (LevelM << 3) | mask;
-        int rest = value << 10;
-        for (int i = 14; i >= 10; i--) if ((rest & (1 << i)) != 0) rest ^= 0x537 << (i - 10);
-        int bits = ((value << 10) | rest) ^ 0x5412;
+        int bits = FormatMarks((LevelM << 3) | mask);
 
         for (int bit = 0; bit < 15; bit++)
         {
@@ -302,6 +369,18 @@ static class Qr
             matrix[size - 11 + col, row] = on;
             matrix[row, size - 11 + col] = on;
         }
+    }
+
+    /// <summary>
+    /// The fifteen signs a level and a mask stand for: the five of them guarded by five more of the field's own
+    /// reckoning, and blinded against the all-dark code so no scanner reads a plain grid as one. Both the hand that
+    /// writes the marks and the one that reads them back come by this way to the same number.
+    /// </summary>
+    static int FormatMarks(int pair)
+    {
+        int rest = pair << 10;
+        for (int i = 14; i >= 10; i--) if ((rest & (1 << i)) != 0) rest ^= 0x537 << (i - 10);
+        return ((pair << 10) | rest) ^ 0x5412;
     }
 
     static int VersionInfo(int version)

@@ -13,9 +13,9 @@ namespace DynamicIsland;
 
 public partial class MainWindow : Window
 {
-    enum View { Idle, Media, Timer, Record, Volume, Charge, Focus, Toast, Notice, PairAsk, MediaBig, IdleBig, TimerBig, TimerSet, RecordBig, RecordSet, Menu, Settings, Sources, Look, Shelf, Weather, Place, Phone, PhoneSet, ClipToast, Loading }
+    enum View { Idle, Media, Timer, Record, Volume, Charge, Focus, Toast, Notice, PairAsk, MediaBig, IdleBig, TimerBig, TimerSet, RecordBig, RecordSet, Menu, Settings, Sources, Look, Shelf, Weather, Qr, Place, Phone, PhoneSet, ClipToast, Loading }
 
-    enum Panel { None, Player, Timer, TimerSet, Record, Menu, Settings, Sources, Look, Shelf, Weather, Place, Phone, PhoneSet }
+    enum Panel { None, Player, Timer, TimerSet, Record, Menu, Settings, Sources, Look, Shelf, Weather, Qr, Place, Phone, PhoneSet }
 
     readonly record struct PillShape(double Width, double Height, double Radius);
 
@@ -43,6 +43,7 @@ public partial class MainWindow : Window
         [View.Look] = new(352, 340, 34),
         [View.Shelf] = new(380, 480, 34),
         [View.Weather] = new(340, 190, 34),
+        [View.Qr] = new(320, 104, 34),
         [View.Place] = new(320, 200, 34),
         [View.Phone] = new(320, 300, 34),
         [View.PhoneSet] = new(320, 400, 34),
@@ -65,7 +66,7 @@ public partial class MainWindow : Window
     };
 
     static readonly View[] MenuPages = [View.Settings, View.Look, View.PhoneSet, View.TimerSet, View.TimerBig,
-        View.RecordSet, View.RecordBig, View.Shelf, View.Phone, View.Weather];
+        View.RecordSet, View.RecordBig, View.Shelf, View.Phone, View.Weather, View.Qr];
 
     /// Pills that hold a page of rows are as tall as those rows: the host is clipped to the pill, so a row that
     /// falls past its bottom edge is not low in the list any more, it is gone. See <see cref="FitPages"/>.
@@ -166,6 +167,7 @@ public partial class MainWindow : Window
             [View.Look] = LookView,
             [View.Shelf] = ShelfView,
             [View.Weather] = WeatherView,
+            [View.Qr] = QrView,
             [View.Place] = PlaceView,
             [View.Phone] = PhoneView,
             [View.PhoneSet] = PhoneSetView,
@@ -193,7 +195,8 @@ public partial class MainWindow : Window
         _springs =
         [
             _width, _height, _radius, _scale, _offsetY, _userScale, _topGap, _bubbleSplit, _bubbleScale, _bubbleRecord, _bubbleTimer, _bubbleShelf, _shelfBubbleWidth,
-            _shelfScroll, .. _pages.Values.Select(page => page.Travel), _volumeOvershoot, _leanX, _coverScale, .. _spotSprings,
+            _shelfScroll, .. _pages.Values.Select(page => page.Travel), _volumeOvershoot, _leanX, _coverScale,
+            _coverSnapX, _coverSnapY, _lyricSnapX, _lyricSnapY, .. _spotSprings,
         ];
         _timerTint = new SolidColorBrush(_orange.Color);
         _recordTint = new SolidColorBrush(_red.Color);
@@ -457,6 +460,7 @@ public partial class MainWindow : Window
             Panel.PhoneSet => View.PhoneSet,
             Panel.Shelf => View.Shelf,
             Panel.Weather => View.Weather,
+            Panel.Qr => View.Qr,
             Panel.Phone => View.Phone,
             Panel.Place => View.Place,
             Panel.TimerSet => View.TimerSet,
