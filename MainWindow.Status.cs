@@ -206,12 +206,13 @@ public partial class MainWindow
         if (output == null) return;
 
         string name = device.Name.Length > 0 ? device.Name : "Вывод звука";
-        if (known) name += " · " + level + "%";
         bool Passed(int mark) => was > mark && level <= mark;
-        if (announce)
+        if (announce && known)
+            ShowHeadset(name, HeadsetModel(device), level, low);
+        else if (announce)
             Notify(icon, Brushes.White, device.Kind.Length > 0 ? device.Kind : "Аудиоустройство", name);
         else if (known && (Passed(HeadsetLowPercent) || Passed(HeadsetCriticalPercent)))
-            Notify(icon, _red, "Низкий заряд", name, warn: true);
+            ShowHeadset(name, HeadsetModel(device), level, true);
     }
 
     void PollDoNotDisturb()

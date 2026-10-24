@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <Resource Include="Fonts\*.otf;Fonts\*.ttf" />
+    <Resource Include="Gadgets\*.png" />
   </ItemGroup>
 
 </Project>

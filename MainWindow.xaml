@@ -710,6 +710,25 @@
                     </StackPanel>
                 </Grid>
 
+                <Grid x:Name="HeadsetView" Width="320" Height="64" HorizontalAlignment="Center" VerticalAlignment="Top">
+                    <local:Gadget x:Name="HeadsetGadget" Width="58" Height="45" Margin="11,0,0,0"
+                                  HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                    <StackPanel Margin="76,0,92,0" VerticalAlignment="Center">
+                        <TextBlock x:Name="HeadsetLabel" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock x:Name="HeadsetState" FontSize="12" Margin="0,1,0,0" TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,20,0">
+                        <local:Digits x:Name="HeadsetPercent" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        <Grid Width="27" Height="13" Margin="7,0,0,0" VerticalAlignment="Center">
+                            <Border Width="24" HorizontalAlignment="Left" CornerRadius="4" BorderBrush="{StaticResource Faint}" BorderThickness="1"/>
+                            <Border x:Name="HeadsetFill" Width="0" Height="9" Margin="2,0,0,0" CornerRadius="2.5"
+                                    HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                            <Border Width="2" Height="5" CornerRadius="0,1,1,0" Background="{StaticResource Faint}"
+                                    HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                        </Grid>
+                    </StackPanel>
+                </Grid>
+
                 <Grid x:Name="FocusView" Width="236" Height="34" HorizontalAlignment="Center" VerticalAlignment="Top">
                     <local:Icon x:Name="FocusIcon" Kind="Moon" Width="18" Height="18" Fill="{StaticResource Indigo}"
                                 HorizontalAlignment="Left" VerticalAlignment="Center" Margin="12,0,0,0"
