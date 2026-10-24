@@ -325,6 +325,79 @@
             </Setter>
         </Style>
 
+        <Style x:Key="SourceChip" TargetType="ToggleButton">
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Margin" Value="3"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{StaticResource Dim}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Grid>
+                            <Border CornerRadius="{Binding ActualHeight, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource ChipCorners}}" Background="White" Opacity="0.08"/>
+                            <Border x:Name="Lit" CornerRadius="{Binding ActualHeight, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource ChipCorners}}" Background="{StaticResource Green}" Opacity="0"/>
+                            <Border x:Name="Shine" CornerRadius="{Binding ActualHeight, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource ChipCorners}}" Background="White" Opacity="0"/>
+                            <Border x:Name="Press" CornerRadius="{Binding ActualHeight, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource ChipCorners}}" Background="White" Opacity="0"/>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter Property="Foreground" Value="White"/>
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Lit" Storyboard.TargetProperty="Opacity" To="0.3" Duration="0:0:0.15"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Lit" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.25"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Shine" Storyboard.TargetProperty="Opacity" To="0.1" Duration="0:0:0.12"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Shine" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.3"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Press" Storyboard.TargetProperty="Opacity" To="0.13" Duration="0:0:0.08"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Press" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.3"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="PlainButton" TargetType="Button">
             <Setter Property="Focusable" Value="False"/>
             <Setter Property="Cursor" Value="Hand"/>
@@ -1067,42 +1140,14 @@
                         </UniformGrid>
                         <Border Style="{StaticResource Card}" Margin="0,8,0,8">
                             <local:RowList>
-                                <Button Style="{StaticResource RowButton}" Click="Lyrics_Click">
+                                <Button Style="{StaticResource RowButton}" Click="LyricsRow_Click">
                                     <Grid>
                                         <local:Icon Style="{StaticResource RowIcon}" Kind="Lines"/>
                                         <TextBlock Style="{StaticResource RowLabel}" Text="Текст песен"/>
-                                        <local:Toggle x:Name="LyricsSwitch" Style="{StaticResource RowSwitch}"/>
-                                    </Grid>
-                                </Button>
-                                <Button Style="{StaticResource RowButton}" Click="SourcesRow_Click">
-                                    <Grid>
-                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Search"/>
-                                        <TextBlock Style="{StaticResource RowLabel}" Text="Источники текста"/>
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                            <TextBlock x:Name="SourcesText" Foreground="{StaticResource Dim}" VerticalAlignment="Center"/>
+                                            <TextBlock x:Name="LyricsState" Foreground="{StaticResource Dim}" VerticalAlignment="Center"/>
                                             <local:Icon Style="{StaticResource RowChevron}" Margin="8,1,0,0"/>
                                         </StackPanel>
-                                    </Grid>
-                                </Button>
-                                <Button Style="{StaticResource RowButton}" Click="LyricEffects_Click">
-                                    <Grid>
-                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Sparkle"/>
-                                        <TextBlock Style="{StaticResource RowLabel}" Text="Эффекты текста"/>
-                                        <local:Toggle x:Name="LyricEffectsSwitch" Style="{StaticResource RowSwitch}"/>
-                                    </Grid>
-                                </Button>
-                                <Button Style="{StaticResource RowButton}" Click="LyricParting_Click">
-                                    <Grid>
-                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Parting"/>
-                                        <TextBlock Style="{StaticResource RowLabel}" Text="Буквы расступаются"/>
-                                        <local:Toggle x:Name="LyricPartingSwitch" Style="{StaticResource RowSwitch}"/>
-                                    </Grid>
-                                </Button>
-                                <Button Style="{StaticResource RowButton}" Click="PointerLyric_Click">
-                                    <Grid>
-                                        <local:Icon Style="{StaticResource RowIcon}" Kind="PointerText"/>
-                                        <TextBlock Style="{StaticResource RowLabel}" Text="Текст у курсора"/>
-                                        <local:Segments x:Name="PointerLyricSegments" Style="{StaticResource RowSegments}" Labels="Выкл|Столбик|Строка"/>
                                     </Grid>
                                 </Button>
                                 <Button Style="{StaticResource RowButton}" Click="Rim_Click">
@@ -1924,55 +1969,59 @@
                     </StackPanel>
                 </Grid>
 
-                <!-- Which places the island is told to ask for a song's words. The rows stand in the order their
-                     answers are believed, the same order the service keeps them in. -->
-                <Grid x:Name="SourcesView" Width="320" Height="220" HorizontalAlignment="Center" VerticalAlignment="Top">
-                    <StackPanel x:Name="SourceBody" Margin="8,6,8,0" VerticalAlignment="Top">
-                        <Button Style="{StaticResource BackButton}" Content="ИСТОЧНИКИ ТЕКСТА" Click="SourcesBack_Click"/>
-                        <Border Style="{StaticResource Card}" Margin="0,8,0,0">
-                            <local:RowList x:Name="SourceRows">
-                                <Button Style="{StaticResource RowButton}" Click="Source_Click">
+                <!-- Everything about a song's words gathered in one place: whether they show, what their lines do in
+                     the player and under the pointer, and the places the island asks them from. The sources are chips
+                     rather than rows because several of them answer at once and any mix of them is worth keeping. -->
+                <Grid x:Name="LyricsView" Width="352" Height="312" HorizontalAlignment="Center" VerticalAlignment="Top">
+                    <StackPanel x:Name="LyricsBody" Margin="8,6,8,0" VerticalAlignment="Top">
+                        <Button Style="{StaticResource BackButton}" Content="ТЕКСТ ПЕСЕН" Click="LyricsBack_Click"/>
+                        <Border Style="{StaticResource Card}">
+                            <local:RowList>
+                                <Button Style="{StaticResource RowButton}" Click="Lyrics_Click">
                                     <Grid>
-                                        <TextBlock VerticalAlignment="Center" Text="LRCLIB"/>
-                                        <local:Toggle x:Name="LrclibSwitch" Style="{StaticResource RowSwitch}"/>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Lines"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Показывать текст"/>
+                                        <local:Toggle x:Name="LyricsSwitch" Style="{StaticResource RowSwitch}"/>
                                     </Grid>
                                 </Button>
-                                <Button Style="{StaticResource RowButton}" Click="Source_Click">
+                                <Button Style="{StaticResource RowButton}" Click="LyricEffects_Click">
                                     <Grid>
-                                        <TextBlock VerticalAlignment="Center" Text="Deezer"/>
-                                        <local:Toggle x:Name="DeezerSwitch" Style="{StaticResource RowSwitch}"/>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Sparkle"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Эффекты строк"/>
+                                        <local:Toggle x:Name="LyricEffectsSwitch" Style="{StaticResource RowSwitch}"/>
                                     </Grid>
                                 </Button>
-                                <Button Style="{StaticResource RowButton}" Click="Source_Click">
+                                <Button Style="{StaticResource RowButton}" Click="LyricParting_Click">
                                     <Grid>
-                                        <TextBlock VerticalAlignment="Center" Text="NetEase"/>
-                                        <local:Toggle x:Name="NetEaseSwitch" Style="{StaticResource RowSwitch}"/>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Parting"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Буквы расступаются"/>
+                                        <local:Toggle x:Name="LyricPartingSwitch" Style="{StaticResource RowSwitch}"/>
                                     </Grid>
                                 </Button>
-                                <Button Style="{StaticResource RowButton}" Click="Source_Click">
+                                <Button Style="{StaticResource RowButton}" Click="PointerLyric_Click">
                                     <Grid>
-                                        <TextBlock VerticalAlignment="Center" Text="QQ Music"/>
-                                        <local:Toggle x:Name="QqMusicSwitch" Style="{StaticResource RowSwitch}"/>
-                                    </Grid>
-                                </Button>
-                                <Button Style="{StaticResource RowButton}" Click="Source_Click">
-                                    <Grid>
-                                        <TextBlock VerticalAlignment="Center" Text="Kugou"/>
-                                        <local:Toggle x:Name="KugouSwitch" Style="{StaticResource RowSwitch}"/>
-                                    </Grid>
-                                </Button>
-                                <Button Style="{StaticResource RowButton}" Click="Source_Click">
-                                    <Grid>
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <TextBlock Text="Paxsenix"/>
-                                            <Border Background="#33FF9F0A" CornerRadius="5" Padding="5,1,5,2" Margin="8,1,0,0" VerticalAlignment="Center">
-                                                <TextBlock Text="BETA" FontSize="9.5" FontWeight="Bold" Foreground="{StaticResource Orange}"/>
-                                            </Border>
-                                        </StackPanel>
-                                        <local:Toggle x:Name="PaxsenixSwitch" Style="{StaticResource RowSwitch}"/>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="PointerText"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="У курсора"/>
+                                        <local:Segments x:Name="PointerLyricSegments" Style="{StaticResource RowSegments}" Labels="Выкл|Столбик|Строка"/>
                                     </Grid>
                                 </Button>
                             </local:RowList>
+                        </Border>
+                        <TextBlock Style="{StaticResource Caption}" Text="ИСТОЧНИКИ" Margin="12,4,0,4"/>
+                        <Border Style="{StaticResource Card}" Margin="0">
+                            <UniformGrid x:Name="SourceChips" Columns="3" Margin="6,3">
+                                <ToggleButton Style="{StaticResource SourceChip}" Content="LRCLIB" Click="Source_Click"/>
+                                <ToggleButton Style="{StaticResource SourceChip}" Content="Deezer" Click="Source_Click"/>
+                                <ToggleButton Style="{StaticResource SourceChip}" Content="NetEase" Click="Source_Click"/>
+                                <ToggleButton Style="{StaticResource SourceChip}" Content="QQ Music" Click="Source_Click"/>
+                                <ToggleButton Style="{StaticResource SourceChip}" Content="Kugou" Click="Source_Click"/>
+                                <ToggleButton Style="{StaticResource SourceChip}" Click="Source_Click">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Paxsenix"/>
+                                        <TextBlock Text="β" FontWeight="Bold" Foreground="{StaticResource Orange}" Margin="4,0,0,0"/>
+                                    </StackPanel>
+                                </ToggleButton>
+                            </UniformGrid>
                         </Border>
                     </StackPanel>
                 </Grid>

@@ -13,9 +13,9 @@ namespace DynamicIsland;
 
 public partial class MainWindow : Window
 {
-    enum View { Idle, Media, Timer, Record, Volume, Charge, Focus, Toast, Notice, PairAsk, MediaBig, IdleBig, TimerBig, TimerSet, RecordBig, RecordSet, Menu, Settings, Sources, Look, Shelf, Weather, Qr, Place, Phone, PhoneSet, ClipToast, Loading }
+    enum View { Idle, Media, Timer, Record, Volume, Charge, Focus, Toast, Notice, PairAsk, MediaBig, IdleBig, TimerBig, TimerSet, RecordBig, RecordSet, Menu, Settings, Lyrics, Look, Shelf, Weather, Qr, Place, Phone, PhoneSet, ClipToast, Loading }
 
-    enum Panel { None, Player, Timer, TimerSet, Record, Menu, Settings, Sources, Look, Shelf, Weather, Qr, Place, Phone, PhoneSet }
+    enum Panel { None, Player, Timer, TimerSet, Record, Menu, Settings, Lyrics, Look, Shelf, Weather, Qr, Place, Phone, PhoneSet }
 
     readonly record struct PillShape(double Width, double Height, double Radius);
 
@@ -39,7 +39,7 @@ public partial class MainWindow : Window
         [View.RecordSet] = new(320, 92, 40),
         [View.Menu] = new(300, 133, 34),
         [View.Settings] = new(320, 479, 34),
-        [View.Sources] = new(320, 220, 34),
+        [View.Lyrics] = new(352, 312, 34),
         [View.Look] = new(352, 340, 34),
         [View.Shelf] = new(380, 480, 34),
         [View.Weather] = new(340, 190, 34),
@@ -77,7 +77,7 @@ public partial class MainWindow : Window
 
     /// The pages the settings page opens under itself beside the ones the menu lists too: the page of lyric sources
     /// is reached from settings and returns there, not to the menu.
-    static readonly View[] SettingsPages = [View.Sources];
+    static readonly View[] SettingsPages = [View.Lyrics];
 
     /// The most rows a page of the pinned kind may take before the rest has to be scrolled to: the look page holds the
     /// placement and the faces as sections that open under it, the smartphone page its outward doors and its code, and
@@ -163,7 +163,7 @@ public partial class MainWindow : Window
             [View.RecordSet] = RecordSetView,
             [View.Menu] = MenuView,
             [View.Settings] = SettingsView,
-            [View.Sources] = SourcesView,
+            [View.Lyrics] = LyricsView,
             [View.Look] = LookView,
             [View.Shelf] = ShelfView,
             [View.Weather] = WeatherView,
@@ -284,7 +284,7 @@ public partial class MainWindow : Window
     {
         foreach ((View view, FrameworkElement body) in new (View, FrameworkElement)[]
         {
-            (View.Menu, MenuBody), (View.Settings, SettingsBody), (View.Sources, SourceBody), (View.Weather, WeatherBody),
+            (View.Menu, MenuBody), (View.Settings, SettingsBody), (View.Lyrics, LyricsBody), (View.Weather, WeatherBody),
         }) FitPage(view, body);
         foreach (PinnedPage page in _pages.Values) page.Fit();
     }
@@ -457,7 +457,7 @@ public partial class MainWindow : Window
         {
             Panel.Menu => View.Menu,
             Panel.Settings => View.Settings,
-            Panel.Sources => View.Sources,
+            Panel.Lyrics => View.Lyrics,
             Panel.Look => View.Look,
             Panel.PhoneSet => View.PhoneSet,
             Panel.Shelf => View.Shelf,
@@ -550,7 +550,7 @@ public partial class MainWindow : Window
         View.Media => PillShapes[view] with { Width = _compactMediaWidth },
         View.MediaBig when _playerHasLyricRoom => PillShapes[view] with { Height = PlayerHeight + PlayerLyricsHeight },
         View.RecordSet => PillShapes[view] with { Width = RecordSetView.Width },
-        View.Menu or View.Settings or View.Sources or View.Look or View.Weather or View.Place or View.Phone or View.PhoneSet
+        View.Menu or View.Settings or View.Lyrics or View.Look or View.Weather or View.Place or View.Phone or View.PhoneSet
             => PillShapes[view] with { Height = _views[view].Height },
         _ => PillShapes[view],
     };
