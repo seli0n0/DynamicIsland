@@ -120,7 +120,7 @@ public partial class MainWindow
     static Glyph GlyphOf(Sky sky, bool night) => sky switch
     {
         Sky.Clear => night ? Glyph.Moon : Glyph.Sun,
-        Sky.Cloudy => night ? Glyph.Cloud : Glyph.CloudSun,
+        Sky.Cloudy => night ? Glyph.CloudMoon : Glyph.CloudSun,
         Sky.Overcast => Glyph.Cloud,
         Sky.Fog => Glyph.Fog,
         Sky.Rain => Glyph.Rain,

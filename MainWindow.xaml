@@ -1066,7 +1066,7 @@
                             <local:RowList>
                                 <Button Style="{StaticResource RowButton}" Click="TimerRow_Click">
                                     <Grid>
-                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Clock"/>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Timer"/>
                                         <TextBlock Style="{StaticResource RowLabel}" Text="Таймер"/>
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                             <local:Digits x:Name="MenuTimer" VerticalAlignment="Center"/>
@@ -1161,7 +1161,7 @@
                             <local:RowList>
                                 <Button Style="{StaticResource RowButton}" Click="LyricsRow_Click">
                                     <Grid>
-                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Lines"/>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Quote"/>
                                         <TextBlock Style="{StaticResource RowLabel}" Text="Текст песен"/>
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                             <TextBlock x:Name="LyricsState" Foreground="{StaticResource Dim}" VerticalAlignment="Center"/>
@@ -1451,7 +1451,7 @@
                                         </Button>
                                         <Button Style="{StaticResource RowButton}" Click="PhoneTimer_Click">
                                             <Grid>
-                                                <local:Icon Style="{StaticResource RowIcon}" Kind="Clock"/>
+                                                <local:Icon Style="{StaticResource RowIcon}" Kind="Timer"/>
                                                 <TextBlock Style="{StaticResource RowLabel}" Text="Конец таймера"/>
                                                 <local:Toggle x:Name="PhoneTimerSwitch" Style="{StaticResource RowSwitch}"/>
                                             </Grid>
@@ -1998,7 +1998,7 @@
                             <local:RowList>
                                 <Button Style="{StaticResource RowButton}" Click="Lyrics_Click">
                                     <Grid>
-                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Lines"/>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Quote"/>
                                         <TextBlock Style="{StaticResource RowLabel}" Text="Показывать текст"/>
                                         <local:Toggle x:Name="LyricsSwitch" Style="{StaticResource RowSwitch}"/>
                                     </Grid>
@@ -2065,7 +2065,7 @@
                             <Button Style="{StaticResource BackButton}" Content="МЕСТО" Click="PlaceBack_Click"/>
                             <Button Style="{StaticResource RowButton}" Click="PlaceAuto_Click">
                                 <Grid>
-                                    <local:Icon Style="{StaticResource RowIcon}" Kind="Pin"/>
+                                    <local:Icon Style="{StaticResource RowIcon}" Kind="Location"/>
                                     <TextBlock Style="{StaticResource RowLabel}" Text="Определять автоматически"/>
                                     <local:Icon x:Name="PlaceAutoCheck" Kind="Check" Width="14" Height="14" Fill="White"
                                                 HorizontalAlignment="Right" VerticalAlignment="Center"/>
