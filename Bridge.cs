@@ -118,10 +118,25 @@ sealed partial class Bridge
             : DateTimeOffset.FromUnixTimeMilliseconds(Time).LocalDateTime.ToString("HH:mm");
     }
 
+    /// <summary>
+    /// The mark a notice brought by the phone's chat plugin is filed under. A key that begins with it is answered back
+    /// through the plugin's own door rather than the protocol's, since the plugin is the only thing on either machine
+    /// that can put a word into that chat or take a message away from it.
+    /// </summary>
+    public const string ChatMark = "tg:";
+
+    /// <summary>
+    /// What the island owes the plugin: a message to put away or a message to answer, both named by the sign the plugin
+    /// gave it before this island prefixed it. `Text` carries the answer and stands empty for the rest.
+    /// </summary>
+    public sealed record Deed(string Do, string Sign, string Text = "");
+
     readonly CancellationTokenSource _shutdown = new();
     Task? _faces;
     BridgeKde? _kde;
     string _address = "";
+    readonly Queue<Deed> _deeds = new();
+    TaskCompletionSource _waked = NewWake();
 
     public Bridge()
     {
@@ -162,20 +177,80 @@ sealed partial class Bridge
     /// <summary>The phone took a notice away; the key says which.</summary>
     public void Took(string key) => NoticeGone?.Invoke(key);
 
+    /// <summary>
+    /// A deed kept until the plugin comes for it. The plugin asks at its own pace, so a phone that has only just woken
+    /// finds everything its owner did on the island while it slept.
+    /// </summary>
+    void Do(Deed deed)
+    {
+        lock (_deeds) _deeds.Enqueue(deed);
+        Wake();
+    }
+
+    /// <summary>
+    /// The door a plugin waits at for its next deed. The island holds it open until there is something to hand over or
+    /// until the wait has gone, which is how a plugin learns that the island still stands without asking a hundred
+    /// times a minute.
+    /// </summary>
+    public async Task<Deed?> Held(TimeSpan howLong, CancellationToken token)
+    {
+        using var waited = CancellationTokenSource.CreateLinkedTokenSource(token);
+        waited.CancelAfter(howLong);
+        while (true)
+        {
+            TaskCompletionSource pending;
+            lock (_deeds)
+            {
+                if (_deeds.Count > 0) return _deeds.Dequeue();
+                pending = _waked; // taken under the same lock that a deed is kept under, so a deed that arrives between
+                                  // these two lines wakes the wait rather than being left behind by it
+            }
+            try { await pending.Task.WaitAsync(waited.Token); }
+            catch (OperationCanceledException) { return null; }
+        }
+    }
+
+    static TaskCompletionSource NewWake() => new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>Every plugin that waits is told to look again, and the next one to arrive finds the door freshly shut.</summary>
+    void Wake()
+    {
+        var gone = Interlocked.Exchange(ref _waked, NewWake());
+        gone.TrySetResult();
+    }
+
+    /// <summary>Whether a notice came through the phone's chat plugin rather than through the protocol.</summary>
+    static bool Chatted(string key) => key.StartsWith(ChatMark, StringComparison.Ordinal);
+
+    /// <summary>The sign the plugin knew the notice by, before this island prefixed it.</summary>
+    static string Sign(string key) => key[ChatMark.Length..];
+
     /// <summary>The phone itself has gone off the channel, with all its notices still lying here.</summary>
     public void Gone(string phoneId, string device) => PhoneLeft?.Invoke(phoneId, device);
 
     /// <summary>Ask the phone again what it is holding, as the family asks the moment a channel settles.</summary>
     public void AskNotices() => To(() => _kde?.AskNotices());
 
-    /// <summary>Take a notice off the phone's own screen.</summary>
-    public void DismissNotice(string key) => To(() => _kde?.Dismiss(key));
+    /// <summary>
+    /// Take a notice off the phone's own screen. A notice the chat plugin brought goes back to that plugin, since no
+    /// packet of the protocol reaches a chat the plugin itself opened.
+    /// </summary>
+    public void DismissNotice(string key) => To(() =>
+    {
+        if (Chatted(key)) { Do(new Deed("dismiss", Sign(key))); return; }
+        _kde?.Dismiss(key);
+    });
 
     /// <summary>Press one of the buttons the phone put under its notice.</summary>
     public void PressNotice(string key, string action) => To(() => _kde?.Press(key, action));
 
-    /// <summary>Answer a notice with words the island holds; the phone decides whether a notice can be answered.</summary>
-    public void AnswerNotice(string key, string message) => To(() => _kde?.Reply(key, message));
+    /// <summary>Answer a notice with words the island holds; the phone decides whether a notice can be answered. Words
+    /// for a chat the plugin opened travel back the same door the message came in through.</summary>
+    public void AnswerNotice(string key, string message) => To(() =>
+    {
+        if (Chatted(key)) { Do(new Deed("answer", Sign(key), message)); return; }
+        _kde?.Reply(key, message);
+    });
 
     /// <summary>
     /// Say something on the phone's own screen, as the island says it here. Nothing is shown for it when the phone has

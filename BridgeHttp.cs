@@ -2,6 +2,7 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.Json;
 
 namespace DynamicIsland;
 
@@ -58,7 +59,7 @@ sealed class BridgeHttp
 
                 Answer answer = request.TooBig
                     ? new Answer(413, """{"ok":false,"error":"Файл слишком большой"}""")
-                    : Await(request, client);
+                    : await Await(request, client, token);
                 if (answer.Carry is { Length: > 0 } file)
                 {
                     // a shelf file goes out as it lies on the disk. The shelf keeps copies the size of a video, and
@@ -98,7 +99,7 @@ sealed class BridgeHttp
     }
 
     /// <summary>What the door answers, in one place so that every road is seen beside its neighbours.</summary>
-    Answer Await(Request request, TcpClient client)
+    async Task<Answer> Await(Request request, TcpClient client, CancellationToken token)
     {
         if (request.Key != _bridge.Key)
             return new Answer(403, One("Ключ не тот", "Страница открыта по старой QR-коде. Покажите острову свежую."));
@@ -110,6 +111,7 @@ sealed class BridgeHttp
                 "/ping" => new Answer(200, """{"ok":true,"name":"остров"}"""),
                 "/shelf" => Listing(),
                 "/file" => Carried(request),
+                "/wait" => await Held(token),
                 _ => new Answer(404, One("Ни такой дороги", "Страница острова живёт по корню этого адреса.")),
             };
         }
@@ -122,6 +124,7 @@ sealed class BridgeHttp
             "/clip" => Say(request),
             "/upload" => Send(request),
             "/shelf" => Pinned(request),
+            "/note" => Noted(request),
             _ => new Answer(404, One("Ни такой дороги", "Страница острова живёт по корню этого адреса.")),
         };
     }
@@ -152,6 +155,67 @@ sealed class BridgeHttp
             return new Answer(404, One("Ни такого на полке", "Полка переменилась, пока страница её показывала. Обновите её."));
         return new Answer(200, "", files[place]);
     }
+
+    /// <summary>
+    /// The deed the plugin came for. The island keeps the door open until there is one to hand over, and answers with
+    /// an empty one when the wait has merely gone by, so a plugin learns that the island still stands without asking a
+    /// hundred times a minute. The socket itself gives up a few seconds after this, which is why the hold is shorter.
+    /// </summary>
+    async Task<Answer> Held(CancellationToken token)
+    {
+        Bridge.Deed? deed = await _bridge.Held(Waiting, token);
+        return deed is null
+            ? new Answer(200, """{"do":""}""")
+            : new Answer(200,
+                $$"""{"do":"{{Quote(deed.Do)}}","to":"{{Quote(deed.Sign)}}","text":"{{Quote(deed.Text)}}"}""");
+    }
+
+    static readonly TimeSpan Waiting = TimeSpan.FromSeconds(15);
+
+    /// <summary>
+    /// A message the phone's chat plugin brought, in the plugin's own words: whose chat, what was said, whether it can
+    /// be taken away, and whether the island should say nothing about it. It is filed as a notice under the plugin's
+    /// mark, so the island's own buttons find their way back to the same plugin. <c>"gone":true</c> says the message
+    /// stopped existing on the phone, and everything else is a notice that has just appeared or changed in place.
+    /// </summary>
+    Answer Noted(Request request)
+    {
+        JsonDocument read;
+        try { read = JsonDocument.Parse(request.Text); }
+        catch (JsonException) { return new Answer(400, """{"ok":false,"error":"Не свёрстано"}"""); }
+        using (read)
+        {
+            JsonElement body = read.RootElement;
+            if (body.ValueKind != JsonValueKind.Object)
+                return new Answer(400, """{"ok":false,"error":"Не список пар"}""");
+            string sign = Word(body, "id");
+            if (sign.Length == 0) return new Answer(400, """{"ok":false,"error":"Сообщение без номера"}""");
+            string key = Bridge.ChatMark + sign;
+            if (Toggled(body, "gone"))
+            {
+                _bridge.Took(key);
+                return new Answer(200, """{"ok":true,"kind":"gone"}""");
+            }
+            _bridge.Bring(new Bridge.Notice(key, Word(body, "phone"),
+                Word(body, "app").Length > 0 ? Word(body, "app") : "Экстераграмм",
+                Word(body, "title"), Word(body, "text"), [], "",
+                Toggled(body, "clearable"), Toggled(body, "silent"),
+                When(body)));
+            return new Answer(200, """{"ok":true,"kind":"note"}""");
+        }
+    }
+
+    static string Word(JsonElement body, string name) =>
+        body.TryGetProperty(name, out JsonElement found) && found.ValueKind == JsonValueKind.String
+            ? found.GetString() ?? "" : "";
+
+    static bool Toggled(JsonElement body, string name) =>
+        body.TryGetProperty(name, out JsonElement found) && found.ValueKind == JsonValueKind.True;
+
+    /// <summary>The moment the plugin put the message up, or the moment here when the plugin knew better than to say.</summary>
+    static long When(JsonElement body) =>
+        body.TryGetProperty("time", out JsonElement found) && found.ValueKind == JsonValueKind.Number
+        && found.TryGetInt64(out long given) && given > 0 ? given : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
     /// <summary>Words the phone wanted kept rather than copied: they go on the shelf as a note with a name of its own.</summary>
     Answer Pinned(Request request)

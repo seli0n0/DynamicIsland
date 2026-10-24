@@ -24,3 +24,6 @@ publish/
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# Python caches from the phone plugin sources
+__pycache__/
