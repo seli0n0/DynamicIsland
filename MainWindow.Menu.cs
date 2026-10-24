@@ -17,6 +17,9 @@ public partial class MainWindow
     /// The page of sources holds its own caption first, so a row's number only becomes a source after it.
     const int FirstSourceRow = 1;
 
+    /// The first segment of the row puts the line away, so a shape is its segment number less one.
+    const int PointerLyricOff = 0, FirstPointerLyricShape = 1;
+
     static readonly string[] SourceNames = ["LRCLIB", "Deezer", "NetEase", "QQ Music", "Kugou", "Paxsenix"];
 
     void SettingsRow_Click(object sender, RoutedEventArgs e) => ShowPanelAndCheckUpdate(Panel.Settings);
@@ -113,6 +116,13 @@ public partial class MainWindow
         RebuildPlayerLyrics();
     }
 
+    void LyricParting_Click(object sender, RoutedEventArgs e)
+    {
+        Settings.LyricParting = !Settings.LyricParting;
+        UpdateSwitches(true);
+        StirLyrics();
+    }
+
     void Rim_Click(object sender, RoutedEventArgs e)
     {
         Settings.Rim = !Settings.Rim;
@@ -156,6 +166,8 @@ public partial class MainWindow
     {
         LyricsSwitch.Set(Settings.Lyrics, animate);
         LyricEffectsSwitch.Set(Settings.LyricEffects, animate);
+        PointerLyricSegments.Set(Settings.PointerLyric ? FirstPointerLyricShape + (int)Settings.PointerLyricShape : PointerLyricOff, animate);
+        LyricPartingSwitch.Set(Settings.LyricParting, animate);
         RimSwitch.Set(Settings.Rim, animate);
         AppVolumeSwitch.Set(Settings.AppVolume, animate);
         NetworkSwitch.Set(Settings.Network, animate);

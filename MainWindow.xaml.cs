@@ -209,6 +209,7 @@ public partial class MainWindow : Window
         _glass = new Glass(this);
         _eqLoop = new FrameLoop(AdvanceEq, EqFrameSeconds);
         _seekLoop = new FrameLoop(AdvanceSeek);
+        _partLoop = new FrameLoop(AdvanceLyricParting);
         _transientTimeout = new DelayedAction(EndTransient);
         _collapseTimeout = new DelayedAction(Collapse);
         _awayTimeout = new DelayedAction(ReturnFromAway);
@@ -403,6 +404,7 @@ public partial class MainWindow : Window
         window?.Close();
         _ticker.Stop();
         _alarm.Stop();
+        _pointerLyric?.ShowLine("", 0, 0);
         _glass.Hide();
         _bridge.Stop();
         var fade = new DoubleAnimation(0, Ms(220));
@@ -430,6 +432,7 @@ public partial class MainWindow : Window
         Safely(PollVolume);
         if (_ticks % HeadsetReadTicks == 1) Safely(() => ReadHeadset(_audio.Device));
         Safely(() => UpdateLyric());
+        Safely(UpdatePointerLyric);
         Safely(UpdateTimer);
         Safely(UpdateRecord);
         if (_ticks % FullscreenCheckTicks == 0)
@@ -442,8 +445,7 @@ public partial class MainWindow : Window
             Safely(UpdateClock);
             Safely(PollPower);
             _ = _weather.RefreshAsync();
-            Safely(() => Native.KeepOnTop(_hwnd));
-            Safely(_glass.Place);
+            Safely(StayOnTop);
             if (_media.IsPlaying) _lastPlayedAt = DateTime.UtcNow;
             Safely(UpdateView);
         }

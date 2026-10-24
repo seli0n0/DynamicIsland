@@ -1091,6 +1091,20 @@
                                         <local:Toggle x:Name="LyricEffectsSwitch" Style="{StaticResource RowSwitch}"/>
                                     </Grid>
                                 </Button>
+                                <Button Style="{StaticResource RowButton}" Click="LyricParting_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Parting"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Буквы расступаются"/>
+                                        <local:Toggle x:Name="LyricPartingSwitch" Style="{StaticResource RowSwitch}"/>
+                                    </Grid>
+                                </Button>
+                                <Button Style="{StaticResource RowButton}" Click="PointerLyric_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="PointerText"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Текст у курсора"/>
+                                        <local:Segments x:Name="PointerLyricSegments" Style="{StaticResource RowSegments}" Labels="Выкл|Столбик|Строка"/>
+                                    </Grid>
+                                </Button>
                                 <Button Style="{StaticResource RowButton}" Click="Rim_Click">
                                     <Grid>
                                         <local:Icon Style="{StaticResource RowIcon}" Kind="Rim"/>

@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
@@ -37,6 +38,7 @@ public partial class MainWindow
     }
 
     readonly BitmapCache _lyricCache = new();
+    readonly FrameLoop _partLoop;
     LyricsService.Line[] _lyricLines = [];
     int _lyricIndex = -1;
     string _lyricTitle = "";
@@ -125,6 +127,7 @@ public partial class MainWindow
         next.Offset.X = overflow > 0 ? LyricFadeEdge : (box - width) / 2;
         next.Offset.BeginAnimation(TranslateTransform.XProperty, overflow > 0 ? CreateLyricScroll(overflow, seconds) : null);
         next.Enter();
+        StirLyrics();
     }
 
     void CentreLyrics()
@@ -191,6 +194,7 @@ public partial class MainWindow
         int lead = index + (up ? -1 : 1);
         double now = _clock.Elapsed.TotalSeconds;
         _playerScroll = to;
+        StirLyrics();
         for (int i = 0; i < _playerRows.Length; i++)
         {
             PlayerLine line = _playerRows[i];
@@ -228,6 +232,25 @@ public partial class MainWindow
             LineOffsetOf(line.Row).Y = y.Value;
         }
         _playerScrolling = rolling;
+    }
+
+    void StirLyrics() => _partLoop.Start();
+
+    bool AdvanceLyricParting(double dt)
+    {
+        bool parting = _hovered && Settings.LyricParting;
+        bool overPlayer = parting && _view == View.MediaBig, overCompact = parting && _view == View.Media;
+        bool moving = overPlayer && _playerScrolling;
+        int sung = Math.Max(_playerIndex, 0);
+        for (int i = 0; i < _playerRows.Length; i++)
+        {
+            if (Math.Abs(i - sung) > VisibleLineRange) continue;
+            Lyric row = _playerRows[i].Row;
+            moving |= row.Part(overPlayer ? Mouse.GetPosition(row) : null, dt);
+        }
+        foreach (CompactLyric line in new[] { LyricA, LyricB })
+            moving |= line.Part(overCompact && line == _lyricBlock ? Mouse.GetPosition(line) : null, dt);
+        return moving;
     }
 
     static ScaleTransform LineScaleOf(Lyric row) => (ScaleTransform)((TransformGroup)row.RenderTransform).Children[0];

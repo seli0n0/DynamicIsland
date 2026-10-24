@@ -40,6 +40,12 @@ enum LyricSource
     All = Usual | Paxsenix,
 }
 
+enum PointerLyricShape
+{
+    Column,
+    Line,
+}
+
 enum Hover
 {
     Disc,
@@ -63,6 +69,9 @@ static class Settings
     const int MinFrost = 10, MaxFrost = 100, DefaultFrost = 60;
 
     static bool _lyrics = ReadSwitch(nameof(Lyrics)), _lyricEffects = ReadSwitch(nameof(LyricEffects));
+    static bool _pointerLyric = ReadSwitch(nameof(PointerLyric), false);
+    static bool _lyricParting = ReadSwitch(nameof(LyricParting));
+    static PointerLyricShape _pointerLyricShape = (PointerLyricShape)Math.Clamp(Read(nameof(PointerLyricShape), 0), 0, (int)PointerLyricShape.Line);
     static bool _network = ReadSwitch(nameof(Network)), _hideFullscreen = ReadSwitch(nameof(HideFullscreen));
     static bool _rim = ReadSwitch(nameof(Rim)), _appVolume = ReadSwitch(nameof(AppVolume));
     static bool _timerPauses = ReadSwitch(nameof(TimerPauses)), _workArea = ReadSwitch(nameof(WorkArea));
@@ -200,6 +209,24 @@ static class Settings
     {
         get => _lyricEffects;
         set => Write(nameof(LyricEffects), _lyricEffects = value);
+    }
+
+    public static bool LyricParting
+    {
+        get => _lyricParting;
+        set => Write(nameof(LyricParting), _lyricParting = value);
+    }
+
+    public static bool PointerLyric
+    {
+        get => _pointerLyric;
+        set => Write(nameof(PointerLyric), _pointerLyric = value);
+    }
+
+    public static PointerLyricShape PointerLyricShape
+    {
+        get => _pointerLyricShape;
+        set => Write(nameof(PointerLyricShape), (int)(_pointerLyricShape = value));
     }
 
     public static bool Rim
