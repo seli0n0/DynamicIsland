@@ -67,6 +67,9 @@ public partial class UpdateWindow : Window
             _ => (Brush)Resources["Faint"],
         };
 
+        // a fresh reading of the notes is read from its beginning; the same array, arriving again while the download
+        // reports itself, leaves the box where the owner left it
+        if (!ReferenceEquals(NotesList.ItemsSource, _updater.Notes)) NotesScroll.ScrollToTop();
         NotesList.ItemsSource = _updater.Notes;
         NotesEmpty.Visibility = _updater.Notes.Length > 0 ? Visibility.Collapsed : Visibility.Visible;
         NotesScroll.Visibility = _updater.Notes.Length > 0 ? Visibility.Visible : Visibility.Collapsed;

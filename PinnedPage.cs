@@ -15,11 +15,15 @@ namespace DynamicIsland;
 /// until the owner asks for it — and how the smartphone page keeps its code, and everything that goes outward, off the
 /// page until it is wanted.
 /// </summary>
-sealed class PinnedPage(FrameworkElement head, Panel body, TranslateTransform move, GradientStop edgeTop,
+sealed class PinnedPage(FrameworkElement head, RowList body, TranslateTransform move, GradientStop edgeTop,
     GradientStop edgeBottom, FrameworkElement host, double most, PinnedSection[] sections, Action wake)
 {
     /// How far a row has to be out of sight before its end is fully faded, in the shelf's own measure.
     const double EdgeFade = 16;
+
+    /// A row is shrunk over this much room at either end, which is wider than the fade: a row about to disappear leans
+    /// away before it is gone, and one coming back grows into its full size as it rises into sight.
+    const double EdgeZone = 70, EdgeScale = 0.8;
 
     /// A turn of the wheel travels this much of a page, which is about the height of one of its rows.
     const double ScrollStep = 72;
@@ -93,10 +97,39 @@ sealed class PinnedPage(FrameworkElement head, Panel body, TranslateTransform mo
     public void Apply()
     {
         double scrolled = Travel.Value;
-        move.Y = -scrolled;
         edgeTop.Color = Fade(scrolled);
         edgeBottom.Color = Fade(Overflow - scrolled);
+        if (host.IsVisible) Shrink(scrolled);
+        if (move.Y == -scrolled) return;
+
+        move.Y = -scrolled;
+        if (host.IsVisible) body.FollowPointer();
     }
+
+    /// Rows lean away at the ends the page is cut by, so the ones running off read as going rather than as sliced off.
+    /// The page owns the transform of every row it scrolls; none of them carries another, since the rows of a pinned
+    /// page ride the page itself when it slides in.
+    void Shrink(double scrolled)
+    {
+        double top = Math.Clamp(scrolled / EdgeZone, 0, 1), bottom = Math.Clamp((Overflow - scrolled) / EdgeZone, 0, 1);
+        double view = Math.Max(0, host.ActualHeight - Head);
+        foreach (UIElement entry in body.Children)
+        {
+            if (entry is not FrameworkElement row || row.Visibility != Visibility.Visible) continue;
+            double middle = VisualTreeHelper.GetOffset(row).Y + body.Margin.Top + row.ActualHeight / 2 - scrolled;
+            double fromTop = Math.Clamp(middle / EdgeZone, 0, 1), fromBottom = Math.Clamp((view - middle) / EdgeZone, 0, 1);
+            double lean = Math.Max(top * Smooth(1 - fromTop), bottom * Smooth(1 - fromBottom));
+
+            if (row.RenderTransform is not ScaleTransform size)
+            {
+                row.RenderTransform = size = new ScaleTransform();
+                row.RenderTransformOrigin = new Point(0.5, 0.5);
+            }
+            size.ScaleX = size.ScaleY = 1 - (1 - EdgeScale) * lean;
+        }
+    }
+
+    static double Smooth(double t) => t * t * (3 - 2 * t);
 
     static Color Fade(double past) =>
         Color.FromArgb((byte)Math.Round(255 * (1 - Math.Clamp(past / EdgeFade, 0, 1))), 0, 0, 0);

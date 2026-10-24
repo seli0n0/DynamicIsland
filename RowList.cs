@@ -83,6 +83,18 @@ public sealed class RowList : StackPanel
         dc.DrawGeometry(_fill, null, _shape);
     }
 
+    /// <summary>
+    /// The row under the pointer is the row that is lit, and a page travelled under a hand that never moved leaves a
+    /// different row beneath it. WPF only re-reads what is under the mouse when a message arrives, so the list asks for
+    /// that reading itself and then looks, which is what keeps the highlight on the row it is meant to be on while the
+    /// page moves.
+    /// </summary>
+    public void FollowPointer()
+    {
+        Mouse.Synchronize();
+        UpdateHighlight();
+    }
+
     void UpdateHighlight()
     {
         ButtonBase? row = InternalChildren.OfType<ButtonBase>().FirstOrDefault(button => button.IsMouseOver);
