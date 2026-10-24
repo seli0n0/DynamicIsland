@@ -27,7 +27,8 @@ public sealed class Goo : FrameworkElement
     readonly FrameLoop _frostLoop;
 
     Rect _pill = Rect.Empty, _bubble = Rect.Empty;
-    double _radius;
+    double _radius, _bulge;
+    bool _edgeAtBottom;
     int _strength;
     double _spend, _body = byte.MaxValue, _haze, _sweat;
     Action? _settled;
@@ -57,7 +58,7 @@ public sealed class Goo : FrameworkElement
         _frostLoop.Start();
     }
 
-    public (Rect Box, double Radius) PillInside => Inside(_pill, _radius);
+    public (Rect Box, double Radius) PillInside => Inside(_pill, Squircle.Loose(_pill, _radius, _bulge));
 
     public (Rect Box, double Radius) BubbleInside => Inside(_bubble, _bubble.Height / 2);
 
@@ -147,11 +148,13 @@ public sealed class Goo : FrameworkElement
         _flash.Mist.BeginAnimation(Brush.OpacityProperty, null);
     }
 
-    public void SetShape(Rect pill, double radius, Rect bubble)
+    public void SetShape(Rect pill, double radius, double bulge, bool edgeAtBottom, Rect bubble)
     {
-        if (pill == _pill && radius == _radius && bubble == _bubble) return;
+        if (pill == _pill && radius == _radius && bulge == _bulge && edgeAtBottom == _edgeAtBottom && bubble == _bubble) return;
         _pill = pill;
         _radius = radius;
+        _bulge = bulge;
+        _edgeAtBottom = edgeAtBottom;
         _bubble = bubble;
         InvalidateVisual();
     }
@@ -159,14 +162,14 @@ public sealed class Goo : FrameworkElement
     protected override void OnRender(DrawingContext dc)
     {
         if (_pill.IsEmpty) return;
-        Geometry pill = Outline(_pill, _radius);
+        Geometry pill = Outline(_pill, _radius, _bulge, _edgeAtBottom);
         if (_bubble.IsEmpty)
         {
             DrawBody(dc, pill);
             return;
         }
 
-        Geometry bubble = Outline(_bubble, _bubble.Height / 2);
+        Geometry bubble = Outline(_bubble, _bubble.Height / 2, 0, false);
         Geometry? neck = CreateNeck();
         if (neck == null && !_pill.IntersectsWith(_bubble))
         {
@@ -215,10 +218,10 @@ public sealed class Goo : FrameworkElement
         }
     }
 
-    static Geometry Outline(Rect rect, double radius)
+    static Geometry Outline(Rect rect, double radius, double bulge, bool edgeAtBottom)
     {
         (Rect box, double r) = Inside(rect, radius);
-        return Squircle.Of(box, r);
+        return Squircle.Of(box, r, bulge, edgeAtBottom);
     }
 
     static (Rect Box, double Radius) Inside(Rect rect, double radius)
@@ -230,9 +233,12 @@ public sealed class Goo : FrameworkElement
 
     Geometry? CreateNeck()
     {
-        var c1 = new Point(_pill.Right - _radius, _pill.Top + _radius);
+        // the neck leaves the pill through its top-right corner, which is the wide one only when the island hangs
+        // under the bottom edge and the drawing is read from that end
+        double corner = _edgeAtBottom ? Squircle.Loose(_pill, _radius, _bulge) : _radius;
+        var c1 = new Point(_pill.Right - corner, _pill.Top + corner);
         var c2 = new Point(_bubble.Left + _bubble.Height / 2, _bubble.Top + _bubble.Height / 2);
-        return c2.X > c1.X ? Neck(c1, _radius - RimWidth, c2, _bubble.Height / 2 - RimWidth, TearGap) : null;
+        return c2.X > c1.X ? Neck(c1, corner - RimWidth, c2, _bubble.Height / 2 - RimWidth, TearGap) : null;
     }
 
     public static Geometry? Neck(Point c1, double r1, Point c2, double r2, double tearGap)

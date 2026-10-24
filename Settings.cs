@@ -77,6 +77,7 @@ static class Settings
     static bool _dots = ReadSwitch(nameof(Dots), false);
     static bool _lineBar = ReadSwitch(nameof(LineBar));
     static bool _glass = ReadSwitch(nameof(Glass), false);
+    static bool _ornaments = ReadSwitch(nameof(Ornaments));
     static Backdrop _backdrop = (Backdrop)Math.Clamp(Read(nameof(Backdrop), 0), 0, (int)Backdrop.MatrixAndStars);
     static LyricChange _lyricChange = (LyricChange)Math.Clamp(Read(nameof(LyricChange), (int)LyricChange.Wave), 0, (int)LyricChange.Drum);
     static LyricSource _lyricSources = Known((LyricSource)Read(nameof(LyricSources), (int)LyricSource.Usual));
@@ -140,6 +141,15 @@ static class Settings
     {
         get => _glass;
         set => Write(nameof(Glass), _glass = value);
+    }
+
+    /// <summary>Whether the pill dresses itself: the gleam that runs once over the glass when an opening leaves the
+    /// island higher than it was, and the wider rounding of the side hanging free from the screen's edge, which makes
+    /// it read as a drop. Switched off, the island shows the plain shape and steady glass it had before either.</summary>
+    public static bool Ornaments
+    {
+        get => _ornaments;
+        set => Write(nameof(Ornaments), _ornaments = value);
     }
 
     /// <summary>How far the glass lets the frosted blur behind the island stand in its own body: at its least the body

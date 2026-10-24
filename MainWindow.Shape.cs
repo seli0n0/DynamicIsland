@@ -22,6 +22,11 @@ public partial class MainWindow
     const double MaxMotionBlur = 4, MinMotionBlur = 0.1;
     const double CacheScaleTolerance = 0.001;
     const double ShadowReach = 100;
+
+    /// <summary>Share of the room left over at a corner that the side hanging from the edge takes: the pill keeps its
+    /// own rounding where the screen holds it and opens by this much where it does not, so it reads as a drop.
+    /// Laid aside with the rest of the dressing, and the outline is the plain one it was drawn in first.</summary>
+    static double DropBulge => Settings.Ornaments ? 0.45 : 0;
     static readonly TimeSpan GlassTime = TimeSpan.FromMilliseconds(300);
     static readonly TimeSpan FrostTime = TimeSpan.FromMilliseconds(120);
 
@@ -37,7 +42,9 @@ public partial class MainWindow
     readonly Spring[] _springs;
     Rect _clipRect = Rect.Empty;
     double _clipRadius;
+    bool _clipEdge;
     bool _morphing;
+    bool _gleamQueued;
 
     void UpdateTargets()
     {
@@ -125,12 +132,15 @@ public partial class MainWindow
         Pill.Width = w;
         Pill.Height = h;
         Pill.CornerRadius = new CornerRadius(r);
+        Gleam.Width = w;
+        Gleam.Height = h;
         Shadow.Opacity = Math.Clamp((h - CompactMaxHeight) / ShadowFadeHeight, 0, 1);
-        if (pill != _clipRect || r != _clipRadius)
+        if (pill != _clipRect || r != _clipRadius || _growsUp != _clipEdge)
         {
             _clipRect = pill;
             _clipRadius = r;
-            Host.Clip = Shared.Clip = Shadow.Data = Squircle.Of(pill, r);
+            _clipEdge = _growsUp;
+            Host.Clip = Shared.Clip = Shadow.Data = Squircle.Of(pill, r, DropBulge, _growsUp);
             Shadow.Clip = _glass.IsOn ? Around(Shadow.Data) : null;
         }
 
@@ -246,7 +256,7 @@ public partial class MainWindow
         Bubble.IsHitTestVisible = split > BubbleClickableSplit;
 
         double past = ((BubbleGap + wide) * split - wide - tuck) / scale;
-        Body.SetShape(pill, r, apart
+        Body.SetShape(pill, r, DropBulge, _growsUp, apart
             ? new Rect(pill.Right + past, 0, wide * bubble / scale, Bubble.Height * bubble / scale)
             : Rect.Empty);
     }
@@ -273,5 +283,8 @@ public partial class MainWindow
         _morphing = false;
         foreach (FrameworkElement view in _views.Values) FitView(view, 1, 0);
         Host.Effect = null;
+        if (!_gleamQueued) return;
+        _gleamQueued = false;
+        if (Settings.Ornaments) Gleam.Run();
     }
 }

@@ -1590,6 +1590,13 @@
                                         </Button>
                                     </local:RowList>
                                 </Border>
+                                <Button Style="{StaticResource RowButton}" Click="Ornaments_Click">
+                                    <Grid>
+                                        <local:Icon Style="{StaticResource RowIcon}" Kind="Drop"/>
+                                        <TextBlock Style="{StaticResource RowLabel}" Text="Блик и капля"/>
+                                        <local:Toggle x:Name="OrnamentsSwitch" Style="{StaticResource RowSwitch}"/>
+                                    </Grid>
+                                </Button>
                                 <Button Style="{StaticResource RowButton}" Click="Dots_Click">
                                     <Grid>
                                         <local:Icon Style="{StaticResource RowIcon}" Kind="Bars"/>
@@ -2020,6 +2027,8 @@
                     </local:Equalizer.RenderTransform>
                 </local:Equalizer>
             </Canvas>
+
+            <local:Gleam x:Name="Gleam" HorizontalAlignment="Center" VerticalAlignment="Top" IsHitTestVisible="False"/>
         </Grid>
 
         <Border x:Name="Bubble" Width="78" Height="34" CornerRadius="17" Visibility="Collapsed"

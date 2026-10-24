@@ -482,6 +482,7 @@ public partial class MainWindow : Window
 
         SyncEq();
         SyncRim();
+        SyncShadow();
         SyncCover();
         if (!changed) return;
         if (target == View.MediaBig) StartSeekLoop();
@@ -501,6 +502,7 @@ public partial class MainWindow : Window
         _height.Tune(growing ? 220 : 400, growing ? 22 : 33);
         foreach (Spring spring in _spotSprings) spring.Tune(_height.Stiffness, _height.Damping);
 
+        _gleamQueued = to.Height > from.Height;
         _morphing = true;
         SwitchView(_views[target], MenuDirection(previous, target));
         if (target == View.Place) BeginTyping();

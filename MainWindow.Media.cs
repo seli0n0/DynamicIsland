@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
 using static DynamicIsland.Motion;
 
 namespace DynamicIsland;
@@ -19,6 +20,7 @@ public partial class MainWindow
     const double IconBlur = 6;
     const double PulseFrom = 0.5;
     const double PulseAttack = 0.02, PulseRelease = 0.22;
+    const double CastDarkening = 0.5;
     const string UnknownArtist = "Неизвестный исполнитель";
     static readonly Duration TintTime = Ms(450);
     static readonly double[] PulseShare = [0, 0.4, 0.7, 1];
@@ -35,6 +37,7 @@ public partial class MainWindow
     readonly FrameLoop _eqLoop;
     ImageSource? _cover;
     Color? _rimColor;
+    Color _castColor = Colors.Black;
     string _lastTitle = "";
     DateTime _lastPlayedAt = DateTime.MinValue;
     bool _shownPlaying;
@@ -119,11 +122,24 @@ public partial class MainWindow
 
     void SyncRim()
     {
-        bool music = _media.HasTrack && (_cover != null || Settings.Accent != null) && (IsMediaActive || _view == View.MediaBig);
-        Color? tint = Settings.Rim && music ? AccentColor : null;
+        Color? tint = Settings.Rim && WearsAccent ? AccentColor : null;
         if (tint == _rimColor) return;
         _rimColor = tint;
         Body.Tint(tint, TintTime);
+    }
+
+    /// <summary>Whether the island is showing a track whose colours it may wear: the player or the compact line that
+    /// stands for it, with a cover or a picked accent behind it. Without that the palette is a plain white.</summary>
+    bool WearsAccent => _media.HasTrack && (_cover != null || Settings.Accent != null) && (IsMediaActive || _view == View.MediaBig);
+
+    /// <summary>The halo the pill lays on the desk: black while nothing is playing, the cover's own colour pressed
+    /// down towards black once it is — the island then casts the light it carries rather than an absence of it.</summary>
+    void SyncShadow()
+    {
+        Color to = WearsAccent ? Color.FromRgb((byte)(AccentColor.R * CastDarkening), (byte)(AccentColor.G * CastDarkening), (byte)(AccentColor.B * CastDarkening)) : Colors.Black;
+        if (to == _castColor || Shadow.Effect is not DropShadowEffect shade) return;
+        _castColor = to;
+        shade.BeginAnimation(DropShadowEffect.ColorProperty, new ColorAnimation(to, TintTime));
     }
 
     void SyncCover()
@@ -147,6 +163,7 @@ public partial class MainWindow
         PlayerMatrix.Tint(palette, time);
         PlayerLyricWait.Tint(palette, time);
         foreach (RadioButton tile in BackdropStrip.Children) ((BackdropPreview)tile.Content).Tint(palette);
+        SyncShadow();
     }
 
     void SyncBackdrop()

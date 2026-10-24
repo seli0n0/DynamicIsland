@@ -264,6 +264,15 @@ public partial class MainWindow
         OpenFrost(Settings.Glass, LookView.IsVisible);
     }
 
+    /// The dressing is put away and taken up again at once: the outline is remade from the same numbers it was made
+    /// from before, and a gleam already waiting for the end of an opening simply is not run.
+    void Ornaments_Click(object sender, RoutedEventArgs e)
+    {
+        Settings.Ornaments = !Settings.Ornaments;
+        RefreshLookPage();
+        Reshape();
+    }
+
     void FrostSlider_Changed(object? sender, EventArgs e) => SetFrost((int)FrostSlider.Value);
 
     void SetFrost(int percent)
@@ -398,6 +407,7 @@ public partial class MainWindow
         SeekStyleSegments.Set(Settings.LineBar ? 1 : 0, LookView.IsVisible);
         SeekHoverSegments.Set((int)Settings.SeekHover, LookView.IsVisible);
         GlassSwitch.Set(Settings.Glass, LookView.IsVisible);
+        OrnamentsSwitch.Set(Settings.Ornaments, LookView.IsVisible);
         FrostSlider.Set(Settings.Frost, LookView.IsVisible);
         FrostText.Text = Settings.Frost + "%";
         ((RadioButton)BackdropStrip.Children[(int)Settings.Backdrop]).IsChecked = true;
