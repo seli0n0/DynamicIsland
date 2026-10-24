@@ -103,7 +103,7 @@ sealed partial class LyricsService
 
             Match stamped = Stamped.Match(raw.Trim());
             string text = stamped.Success ? stamped.Groups[2].Value.Trim() : raw;
-            return !(text.Contains(TitleSeparator) && Plain(text).StartsWith(heading, StringComparison.Ordinal));
+            return !(heading.Length > 0 && text.Contains(TitleSeparator) && Plain(text).StartsWith(heading, StringComparison.Ordinal));
         }));
     }
 

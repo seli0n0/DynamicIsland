@@ -137,7 +137,7 @@ public partial class MainWindow
 
     static DoubleAnimationUsingKeyFrames CreateLyricScroll(double overflow, double seconds)
     {
-        double hold = Math.Min(0.6, seconds * 0.2);
+        double hold = Math.Clamp(seconds * 0.2, 0, 0.6);
         double run = Math.Min(overflow / LyricScrollSpeed, Math.Max(seconds - hold - 0.5, 0.6));
         return Delayed(LyricFadeEdge, LyricFadeEdge - overflow, TimeSpan.FromSeconds(hold), TimeSpan.FromSeconds(run),
             new SineEase { EasingMode = EasingMode.EaseInOut });
@@ -248,6 +248,16 @@ public partial class MainWindow
             };
         }
         PlayerLyricWait.BeginAnimation(OpacityProperty, fade);
+    }
+
+    /// <summary>Rows of the open player are made again from the lines they were made from. Laying the lines aside
+    /// instead leaves the rows standing over nothing, and the next reading of the sung line reaches past them. A song
+    /// without words is the case that shows it: the lines it has are the very empty list the lyrics hand back.</summary>
+    void RebuildPlayerLyrics()
+    {
+        _playerIndex = -1;
+        BuildPlayerLyrics(_playerLines);
+        if (_view == View.MediaBig) UpdatePlayerLyrics(true);
     }
 
     void BuildPlayerLyrics(LyricsService.Line[] lines)

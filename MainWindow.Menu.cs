@@ -110,7 +110,7 @@ public partial class MainWindow
     {
         Settings.LyricEffects = !Settings.LyricEffects;
         UpdateSwitches(true);
-        _playerLines = [];
+        RebuildPlayerLyrics();
     }
 
     void Rim_Click(object sender, RoutedEventArgs e)

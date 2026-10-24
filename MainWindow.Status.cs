@@ -190,11 +190,12 @@ public partial class MainWindow
         if (output != _audio.Device) return;
 
         AudioService.Output device = output ?? default;
-        int was = device.Container == _headsetId ? _headsetCharge : Headset.Unknown;
-        _headsetCharge = level;
+        bool known = level >= 0, low = known && level <= HeadsetLowPercent;
+        bool sameHeadset = device.Container == _headsetId;
+        int was = sameHeadset ? _headsetCharge : Headset.Unknown;
+        if (known || !sameHeadset) _headsetCharge = level;
         _headsetId = device.Container;
 
-        bool known = level >= 0, low = known && level <= HeadsetLowPercent;
         Glyph icon = device.Headphones ? Glyph.Headphones : Glyph.Speaker;
         InfoHeadsetRow.SetVisible(known);
         PlayerHeadset.SetVisible(known);

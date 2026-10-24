@@ -246,7 +246,7 @@ public partial class MainWindow : Window
         ApplyTimerTint();
         ApplyRecordTint();
         TuneDragSprings(false);
-        _ticker.Tick += (_, _) => TickSafely();
+        _ticker.Tick += (_, _) => OnTick();
         Loaded += OnLoaded;
         Deactivated += OnDeactivated;
     }
@@ -412,11 +412,11 @@ public partial class MainWindow : Window
         StartShapeLoop();
     }
 
-    void TickSafely()
+    static void Safely(Action step)
     {
         try
         {
-            OnTick();
+            step();
         }
         catch (Exception ex)
         {
@@ -427,25 +427,25 @@ public partial class MainWindow : Window
     void OnTick()
     {
         _ticks++;
-        PollVolume();
-        if (_ticks % HeadsetReadTicks == 1) ReadHeadset(_audio.Device);
-        UpdateLyric();
-        UpdateTimer();
-        UpdateRecord();
+        Safely(PollVolume);
+        if (_ticks % HeadsetReadTicks == 1) Safely(() => ReadHeadset(_audio.Device));
+        Safely(() => UpdateLyric());
+        Safely(UpdateTimer);
+        Safely(UpdateRecord);
         if (_ticks % FullscreenCheckTicks == 0)
         {
-            CheckFullscreen();
-            PollDoNotDisturb();
+            Safely(CheckFullscreen);
+            Safely(PollDoNotDisturb);
         }
         if (_ticks % ClockUpdateTicks == 0)
         {
-            UpdateClock();
-            PollPower();
+            Safely(UpdateClock);
+            Safely(PollPower);
             _ = _weather.RefreshAsync();
-            Native.KeepOnTop(_hwnd);
-            _glass.Place();
+            Safely(() => Native.KeepOnTop(_hwnd));
+            Safely(_glass.Place);
             if (_media.IsPlaying) _lastPlayedAt = DateTime.UtcNow;
-            UpdateView();
+            Safely(UpdateView);
         }
     }
 
